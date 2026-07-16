@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="imagetoolbar" content="no">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<link rel="stylesheet" type="text/css" href="/ftv/css/swiper.min.css">
+<link rel="stylesheet" type="text/css" href="/ftv/css/layout.css">
+<script src="/ftv/js/jquery-1.11.3.min.js"></script>
+<script src="/ftv/js/swiper.min.js"></script>
+<script src="/ftv/js/js.js"></script>
+<meta name="naver-site-verification" content="9c693d971f0a2b2e6ff81f2f37a78afe54383c7e" />
+
+<meta name="google-site-verification" content="QZvk0cOzV3XwZ908srkcamfX5a4tiZTLstgbm6_HxrM" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="" />
+<meta property="og:title" content="캔디Cast" />
+<meta property="og:description" content="" />
+<meta property="og:image" content="/meta.png" />
+
+<!-- Twitter -->
+<meta property="twitter:card" content="summary_large_image" />
+<meta property="twitter:url" content="" />
+<meta property="twitter:title" content="캔디Cast" />
+<meta property="twitter:description" content="" />
+<meta property="twitter:image" content="/meta.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+<link rel="manifest" href="/site.webmanifest">
+<link rel="stylesheet" type="text/css" href="/css/show.css">
+<script src="/js/show.js"></script>
+<title>캔디Cast</title>
+
+<!--[if lte IE 8]>
+<script src="/js/html5.js"></script>
+<![endif]-->
+<script>
+// 자바스크립트에서 사용하는 전역변수 선언
+var g5_url       = "";
+var g5_bbs_url   = "/bbs";
+var g5_is_member = "";
+var g5_is_admin  = "";
+var g5_is_mobile = "";
+var g5_bo_table  = "";
+var g5_sca       = "";
+var g5_editor    = "";
+var g5_cookie_domain = "";
+var g5_theme_shop_url = "/theme/basic/shop";
+var g5_shop_url = "/shop";
+</script>
+<link rel="stylesheet" href="/js/font-awesome/css/font-awesome.min.css?ver=2303229">
+<script src="/js/jquery-1.12.4.min.js?ver=2304171"></script>
+<script src="/js/jquery-migrate-1.4.1.min.js?ver=2304171"></script>
+<script src="/js/jquery.menu.js?ver=2304171"></script>
+<script src="/js/common.js?ver=2304171"></script>
+<script src="/js/wrest.js?ver=2304171"></script>
+<script src="/js/placeholders.min.js?ver=2304171"></script>
+</head>
+<body>
+    <div id="wrap">
+
+<style>
+    
+.h-select3 button {
+    margin-left: 10px;
+    background: #fff;
+    border-radius: 3px;
+    border: 0;
+    width: 72px;
+    height: 30px;
+    line-height: 24px;
+    text-align: center;
+    cursor: pointer;
+}
+</style>
+<!-- 상단 시작 { -->
+
+<div id="header" class="clearfix">
+		<h1 id="logo"><a href="/"><img src="/data/common/logo_img" alt=""></a></h1>
+		<div class="header-con">
+			<div class="search">
+
+<form action="/flex.php" method="get" id="serchfom">
+
+<input type="text" placeholder="두글자 이상 입력하세요." name="keyword" style="height: 32px;">
+<a href="#n" class="s-btn" onclick="javascript:document.getElementById('serchfom').submit();"><img src="/ftv/images/ico_search.png" alt=""></a></form></div>
+			<ul class="h-select3">
+			    <button type="button" onclick="javascript:showModal('관리자 승인후 방송가능 합니다.')">방송시작</button>
+			    <button type="button" onclick="location.href='/flex.php'">아이템샵</button>
+				<!--<li><a href="javascript:showModal('관리자 승인후 방송가능 합니다.')" class="h-icon1"></a></li>-->
+				<!--<li><a href="/flex.php" class="h-icon2"></a></li>-->
+			</ul>
+						<div class="h-select2">
+				<button type="button" onclick="javascript:location.href='/bbs/login.php';">로그인</button>
+				<button type="button" onclick="javascript:location.href='/bbs/register_form.php';">회원가입</button>
+			</div>
+					</div>
+	</div>
+
+<div id="container" class="main">
+		<div id="gnb">
+			<h2 class="clearfix"><a href="#n"></a><strong>추천채널</strong></h2>
+			<ul class="gnb-floor1">
+			    				    				<li><a href="/live.php?live_id=75"><img src="/data/file/live/2e364f18658d085706023eaf6dfa0d66_a4p93dMw_468b093b856e7391d9bcdb04eaf5a9349547ee85.webp"style="height: 40px;width: 40px;object-fit: cover;"> 봉서나♥ <span>Live</span></a></li>
+
+        				<li><a href="/live.php?live_id=140"><img src="/data/file/live/2e364f18658d085706023eaf6dfa0d66_hbrlaHTq_52913467dff8facc2ff001a5ce45eb5e11a11669.webp"style="height: 40px;width: 40px;object-fit: cover;">  백하♥ <span>Live</span></a></li>
+
+        				<li><a href="/live.php?live_id=120"><img src="/data/file/live/2e364f18658d085706023eaf6dfa0d66_S19RUMIu_9d56503099be6b182b3ab915b3272ca37b946a13.webp"style="height: 40px;width: 40px;object-fit: cover;"> 지아콩♥ <span>Live</span></a></li>
+
+        				<li><a href="/live.php?live_id=58"><img src="/data/file/live/2e364f18658d085706023eaf6dfa0d66_eto6EpVi_bf88216fe9b16b7bd3640ea26bb9a274fb87022c.webp"style="height: 40px;width: 40px;object-fit: cover;"> 에라짱 <span>Live</span></a></li>
+
+        				<li><a href="/live.php?live_id=153"><img src="/data/file/live/2e364f18658d085706023eaf6dfa0d66_z78Xqe16_7504d2c0a83569992eb85df210350d560ad22204.webp"style="height: 40px;width: 40px;object-fit: cover;"> 채원이♥ <span>Live</span></a></li>
+
+        				<li><a href="/live.php?live_id=69"><img src="/data/file/live/2e364f18658d085706023eaf6dfa0d66_ZtQb9NCS_c35c76d35a49f4fc63c771d6f265a263861758e2.webp"style="height: 40px;width: 40px;object-fit: cover;"> 상석 <span>Live</span></a></li>
+
+        				<li><a href="/live.php?live_id=151"><img src="/data/file/live/2e364f18658d085706023eaf6dfa0d66_UiYZGXl0_25560b14f0882fb64c8317554bbb6cac114fc21e.webp"style="height: 40px;width: 40px;object-fit: cover;"> 하냥이♥ <span>Live</span></a></li>
+
+        				<li><a href="/live.php?live_id=300"><img src="/data/file/live/0b047ac045360724234bfb6d6443ce46_PwxVZ8YE_9b93d51ca5fa2f67345521144e9e25e4d70fd877.jpg"style="height: 40px;width: 40px;object-fit: cover;"> 월향 <span>Live</span></a></li>
+
+        				<li><a href="/live.php?live_id=317"><img src="/data/file/live/cf5cc1783d046da5221db4a9f4e625f4_81OrBaVP_5dc6528165384fa0444037a4db9c095b29ba7235.jpg"style="height: 40px;width: 40px;object-fit: cover;"> 엘리아 <span>Live</span></a></li>
+
+        				<li><a href="/live.php?live_id=143"><img src="/data/file/live/2e364f18658d085706023eaf6dfa0d66_Y4jMVCGq_44d0033701c0f3c1bbb3f1661acc581c9595face.webp"style="height: 40px;width: 40px;object-fit: cover;"> 감성유진 <span>Live</span></a></li>
+
+    			    
+
+			</ul>
+			<div class="gnbf1-btn"><a href="#n"><span>더보기</span></a></div>
+			<ul class="gnb-floor2">
+			    <li><a href="/"><img src="/ftv/images/ico_home.svg" alt=""> 홈</a></li>
+				<li><a href="/toplank.php"><img src="/ftv/images/ico_rank.svg" alt=""> TOP 랭킹</a></li>
+				<li><a href="/chatlist.php"><img src="/ftv/images/ico_vod.svg" alt="">채팅리스트</a></li>
+				<!--<li><a href="/bbs/board.php?bo_table=notice"><img src="/ftv/images/ico_notice.svg" alt=""> 이벤트</a></li>-->
+				
+				<li><a href="/flex.php"><img src="/ftv/images/ico_cart.svg" alt=""> 아이템샵</a></li>
+                				<li><a href="/bbs/board.php?bo_table=notice"><img src="/ftv/images/ico_notice.svg" alt=""> 공지사항</a></li>
+				<!--li><a href="#n"><img src="/ftv/images/event.svg" alt=""> 고객센터</a></li-->
+				<li><a href="/bbs/faq.php"><img src="/ftv/images/event.svg" alt=""> 자주하는 질문</a></li>
+			</ul>
+		</div>
+<div id="contents">
+				<h3 class="my-title">상점</h3>
+
+				<div class="my-tab1-con my-tab-con" style="display: block;">
+					<div class="flex-pay">
+						<p class="clearfix">
+							<span><input type="number" placeholder="0" min="10" max="100000000" maxlength="10" value="0" onkeyup="rPtks()" id="rotn"> 개</span>
+							<span><input type="number" placeholder="0" min="10" max="100000000" maxlength="10" value="0" id="ehs"> 원</span>
+						</p>
+						<p><button type="button" onclick="gobyby()">구매하기</button></p>
+					</div>
+					<div class="flex-con">
+						<ul class="clearfix">
+						    
+						    
+						    
+							<li>
+								<p><img src="/data/file/shopitem/thumb-d4e2ffab03851affcd9cfb028a7b8d5c_6rNbuLsS_9c1fdd329ae3f699c6485d2efab317c64f8a9010_100x100.jpg" alt="" ></p>
+								<p style="width:100%;border-top: 1px solid #222;line-height: 11px;">캔디 150,000개 + <b style="color: red;">실버레벨</b></p>
+								<p><span>150,000원</span> <i>(VAT포함)</i></p>
+								<a href="javascript:goby('150000','150000','실버레벨')">구매하기</a>
+							</li>
+    							<li>
+								<p><img src="/data/file/shopitem/thumb-3845aa7e1d445a9988630a1e1bc26b72_6FkUfVeG_3e2cafa45cc73a3d9f6f99668a6f03f1067bd69e_100x100.png" alt="" ></p>
+								<p style="width:100%;border-top: 1px solid #222;line-height: 11px;">캔디 300,000개 + <b style="color: red;">골드레벨</b></p>
+								<p><span>300,000원</span> <i>(VAT포함)</i></p>
+								<a href="javascript:goby('300000','300000','골드레벨')">구매하기</a>
+							</li>
+    							<li>
+								<p><img src="/data/file/shopitem/thumb-15f729e60ec81733137a0b1d4ac993bd_lCqk4sRE_eb01d1fd714a1b922c873babe4a7fe3ddf4802b7_100x100.jpg" alt="" ></p>
+								<p style="width:100%;border-top: 1px solid #222;line-height: 11px;">캔디 450,000개 + <b style="color: red;">플래티넘레벨</b></p>
+								<p><span>450,000원</span> <i>(VAT포함)</i></p>
+								<a href="javascript:goby('450000','450000','플래티넘레벨')">구매하기</a>
+							</li>
+    							<li>
+								<p><img src="/data/file/shopitem/thumb-15f729e60ec81733137a0b1d4ac993bd_G3O92XUt_ef3a8b072c3ff6b54426baf4a31a49159c15e938_100x100.png" alt="" ></p>
+								<p style="width:100%;border-top: 1px solid #222;line-height: 11px;">캔디 980,000개 + <b style="color: red;">프리미엄</b></p>
+								<p><span>980,000원</span> <i>(VAT포함)</i></p>
+								<a href="javascript:goby('980000','980000','프리미엄')">구매하기</a>
+							</li>
+    							<li>
+								<p><img src="/data/file/shopitem/thumb-15f729e60ec81733137a0b1d4ac993bd_Ol4aJsrM_ebb6115b5049cec76914212d2aa7b94fbb28104f_100x100.png" alt="" ></p>
+								<p style="width:100%;border-top: 1px solid #222;line-height: 11px;">캔디 1,980,000개 + <b style="color: red;">VIP</b></p>
+								<p><span>1,980,000원</span> <i>(VAT포함)</i></p>
+								<a href="javascript:goby('1980000','1980000','VIP')">구매하기</a>
+							</li>
+    							<li>
+								<p><img src="/data/file/shopitem/thumb-3845aa7e1d445a9988630a1e1bc26b72_7QIbZgDd_33677d6c835fd5d478863ab6e165212ef1514331_100x100.jpg" alt="" ></p>
+								<p style="width:100%;border-top: 1px solid #222;line-height: 11px;">캔디 300,000개 + <b style="color: red;">퀵환전</b></p>
+								<p><span>300,000원</span> <i>(VAT포함)</i></p>
+								<a href="javascript:goby('300000','300000','퀵환전')">구매하기</a>
+							</li>
+    						    
+						</ul>
+					</div>
+				</div>
+				<div class="gray-box change">
+					<h3 class="i-title">유의사항</h3>
+					<ul class="td-ul">
+						<li>본 상품은 구매 후 7일 이내에는 사용하지 않은 부분에 대해 취소 및 환불이 가능합니다.</li>
+						<li>단, 상품 내용이 표시, 광고의 내용과 다르거나 계약내용과 다르게 이행된 경우에는 결제일로부터 3개월 이내, 그 사실을 안 날 또는 알 수 있었던 날부터 30일 이내에 취소/환불이 가능합니다.</li>
+						<li>취소/환불신청은 1:1문의 요청에 남겨주시면 처리를 도와드리겠습니다.</li>
+						<li>충전한 캔디의 유효기간은 5년입니다.</li>
+					</ul>
+				</div>
+
+
+
+
+
+
+
+
+<div class="flex-popup">
+	<div class="flex-popup-con">
+		<div class="f-header">
+				캔디구매신청 <a href="#n" class="close-icon"><img src="/ftv/images/ico_close.png" width="14" alt="닫기"></a>
+		</div>
+			<main>
+				<div>
+					<div class="w-full bg-f8 p-2">
+					<div class="pb-6">
+
+
+						<div class="flex flex-col">
+							<div class="space-y-4 border-b2 py-4">
+
+								<div class="flex items-center justify-between" style="margin-top: 10px;">
+									<span class="text-17 font-medium">입금은행</span>
+									<div class="flex items-center">
+										<span class="mr-1.5 text-17">상담 문의주세요 </span></div>
+								</div>
+
+								<div class="flex items-center justify-between" style="margin-top: 10px;">
+									<span class="text-17 font-medium">예금주</span>
+									<div class="flex items-center">
+										<span class="mr-1.5 text-17">상담 문의주세요 </span></div>
+								</div>
+
+								<div class="flex items-center justify-between" style="margin-top: 10px;">
+									<span class="text-17 font-medium">입금계좌</span>
+									<div class="flex items-center">
+										<span class="mr-1.5 text-17">상담 문의주세요 </span></div>
+								</div>
+
+								<div class="flex items-center justify-between" style="margin-top: 10px;">
+									<span class="text-17 font-medium">입금자명</span>
+									<div class="flex items-center">
+										<span class="mr-1.5 text-17"><input type="text" id="buyname"></span></div>
+								</div>
+
+								<div class="flex items-center justify-between" style="margin-top: 10px;">
+									<span class="text-17 font-medium">연락처</span>
+									<div class="flex items-center">
+										<span class="mr-1.5 text-17"><input type="text" id="buyphone"></span></div>
+								</div>
+
+								<div class="flex items-center justify-between" style="margin-top: 10px;">
+									<span class="text-17 font-medium">상품</span>
+									<div class="flex items-center">
+										<span class="mr-1.5 text-17">캔디</span></div>
+								</div>
+								<div class="flex items-center justify-between" style="margin-top: 10px;">
+									<span class="text-17 font-medium">상품개수</span>
+									<div class="flex items-center">
+										<span class="mr-1.5 text-17" id="quantity">x100</span></div>
+								</div>
+							</div>
+						</div>
+						<div class="my-3 flex justify-between">
+							<div>
+								<span class="block text-15 font-medium text-ff">예상 지불 금액</span>
+								<span class="text-12 font-medium">(VAT 포함)</span></div>
+							<span class="text-lg" id="totalwon">11,000 원</span></div>
+						<article class="modal-guide my-5">
+							<ul>
+								<li> 무통장 신청 후 24시간 이내에 입력하신 입금자명으로 정확한 금액을 입금하시면 바로 충전됩니다.</li>
+								<li>(주말, 공휴일 상관없이 24시간 자동 충전)</li>
+								<li>무통장 입금 신청 없이 계좌로 입금할 경우 미처리되오니 반드시 신청 후입금 바랍니다.금후 바로 충전이 되지 않은 경우 고객센터로 문의해 주세요.</li></ul>
+						</article>
+						<button class="bg-black-900-btn" id="buyflex">구매신청</button></div>
+				</div>
+			</div></main>
+	</div>
+</div>
+
+
+<form action="/bbs/formdata.php" method="post" id="gobuy">
+	<input type="hidden" name="count" id="count">
+	<input type="hidden" name="price" id="price">
+	<input type="hidden" name="lev" id="lev">
+	<input type="hidden" name="req" value="import">
+	<input type="hidden" name="name" id="name">
+	<input type="hidden" name="phone" id="phone">
+	<input type="hidden" name="mb_id" value="">
+</form>
+<script>
+
+	function rPtks(){
+			var rotn=$("#rotn").val();
+			$("#ehs").val(rotn * 1 );
+
+	}
+
+	function goby(quantity,lprice,lev){
+			$("#quantity").html("x"+quantity);
+			$("#totalwon").html(addThousandSeparator(lprice) + " 원");
+			$("#count").val(quantity);
+			$("#price").val(lprice);
+			$("#lev").val(lev);
+	}
+
+function gobyby(){
+			var rotn=$("#rotn").val();
+			var lprice=$("#ehs").val();
+			if(parseInt(rotn)){
+				$("#quantity").html("x"+rotn);
+				$("#totalwon").html(addThousandSeparator(lprice) + " 원");
+				$("#count").val(rotn);
+				$("#price").val(lprice);
+				$("#lev").val('');
+				$(".flex-popup").css({display:"flex"});
+			}else{
+					alert('구매할 캔디 개수를 입력하세요.');
+					 return false;
+			}
+
+}
+
+$("#buyflex").click(function(){
+
+		if($("#buyname").val() == "" || $.trim($("#buyname").val()).length == 0){
+		alert("입금자명을 입력하여주세요.");
+			return false;
+		}
+
+		if($("#buyphone").val() == "" || $.trim($("#buyphone").val()).length == 0){
+		alert("연락처를 입력하여주세요.");
+			return false;
+		}				
+		
+
+		$("#name").val($("#buyname").val());
+		$("#phone").val($("#buyphone").val());
+
+	 $.ajax({
+                type: "POST",
+                dataType: "text",
+                url: "/bbs/formdata.php" ,
+                data: $('#gobuy').serialize(),
+                success: function (data) {
+					if(parseInt(data) > 0){
+						$(".close-icon").click();		
+						$("#closeurl").val("/my2.php");
+						showModal("구매신청 되었습니다.");
+					}else{
+
+					}
+                },
+                error : function() {
+                    alert("error");
+                }
+            });
+
+});
+</script>
+
+
+
+
+
+		</div>
+		
+
+</div>
+
+	<div id="main-popup" style="display:none;">
+		<div class="main-popup-box">
+			<div class="mPop swiper mySwiper">
+				<div class="swiper-wrapper">
+					<div class="swiper-slide"><a href="#n"><img src="/ftv/images/d88a8948b5c32e04.png" alt=""></a></div>
+					<div class="swiper-slide"><a href="#n"><img src="/ftv/images/d88a8948b5c32e04.png" alt=""></a></div>
+					<div class="swiper-slide"><a href="#n"><img src="/ftv/images/d88a8948b5c32e04.png" alt=""></a></div>
+					<div class="swiper-slide"><a href="#n"><img src="/ftv/images/d88a8948b5c32e04.png" alt=""></a></div>
+					<div class="swiper-slide"><a href="#n"><img src="/ftv/images/d88a8948b5c32e04.png" alt=""></a></div>
+					<div class="swiper-slide"><a href="#n"><img src="/ftv/images/d88a8948b5c32e04.png" alt=""></a></div>
+				</div>
+				<div class="swiper-button-prev"></div>
+				<div class="swiper-button-next"></div>
+				<div class="swiper-pagination"></div>
+			</div>
+			<div class="btn-group">
+				<button class="btn-today">7일 동안 보지 않기</button>
+				<button class="btn-close">닫기</button>
+			</div>
+		</div>
+	</div>
+<script>
+
+$(window).on("load", function(){
+	//$("body").addClass("hide");
+});
+</script>
+
+
+<div id="myModal" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="closeModal()">&times;</span>
+        <div class="modal-header">알림</div>
+        <div class="modal-body">이것은 커스텀 알림 창입니다!</div>
+        <div class="modal-footer">
+            <button class="modal-button" onclick="closeModal()">닫기</button>
+        </div>
+    </div>
+<input type="hidden" id="closeurl">
+</div>
+
+
+<div class="export-popup" id="export-container"></div>
+<script>
+function upexport() {
+    $(".h-select > a").removeClass("on");
+    $(".h-select > div").hide();
+    var container = $("#export-container");
+    
+    // 清空容器并显示
+    container.empty().css({display: "flex"});
+    
+    $.ajax({
+        url: '/export_handler.php', // 后端处理脚本
+        method: 'GET',
+        success: function(data) {
+            container.html(data); // 将后端返回的内容插入容器
+        },
+        error: function() {
+            container.html('<p>加载失败，请稍后重试。</p>');
+        }
+    });
+}
+
+function closeExport() {
+    $("#export-container").css({display: "none"});
+}
+</script>
+
+</div>
+</body>
+</html>

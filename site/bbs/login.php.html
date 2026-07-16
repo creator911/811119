@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="imagetoolbar" content="no">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<link rel="stylesheet" type="text/css" href="/ftv/css/swiper.min.css">
+<link rel="stylesheet" type="text/css" href="/ftv/css/layout.css">
+<script src="/ftv/js/jquery-1.11.3.min.js"></script>
+<script src="/ftv/js/swiper.min.js"></script>
+<script src="/ftv/js/js.js"></script>
+<meta name="naver-site-verification" content="9c693d971f0a2b2e6ff81f2f37a78afe54383c7e" />
+
+<meta name="google-site-verification" content="QZvk0cOzV3XwZ908srkcamfX5a4tiZTLstgbm6_HxrM" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="" />
+<meta property="og:title" content="캔디Cast" />
+<meta property="og:description" content="" />
+<meta property="og:image" content="/meta.png" />
+
+<!-- Twitter -->
+<meta property="twitter:card" content="summary_large_image" />
+<meta property="twitter:url" content="" />
+<meta property="twitter:title" content="캔디Cast" />
+<meta property="twitter:description" content="" />
+<meta property="twitter:image" content="/meta.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+<link rel="manifest" href="/site.webmanifest">
+<link rel="stylesheet" type="text/css" href="/css/show.css">
+<script src="/js/show.js"></script>
+<title>로그인 | 캔디Cast</title>
+
+<!--[if lte IE 8]>
+<script src="/js/html5.js"></script>
+<![endif]-->
+<script>
+// 자바스크립트에서 사용하는 전역변수 선언
+var g5_url       = "";
+var g5_bbs_url   = "/bbs";
+var g5_is_member = "";
+var g5_is_admin  = "";
+var g5_is_mobile = "";
+var g5_bo_table  = "";
+var g5_sca       = "";
+var g5_editor    = "";
+var g5_cookie_domain = "";
+var g5_theme_shop_url = "/theme/basic/shop";
+var g5_shop_url = "/shop";
+</script>
+<link rel="stylesheet" href="/js/font-awesome/css/font-awesome.min.css?ver=2303229">
+<link rel="stylesheet" href="/theme/basic/skin/member/basic/style.css?ver=2303229">
+<script src="/js/jquery-1.12.4.min.js?ver=2304171"></script>
+<script src="/js/jquery-migrate-1.4.1.min.js?ver=2304171"></script>
+<script src="/js/jquery.menu.js?ver=2304171"></script>
+<script src="/js/common.js?ver=2304171"></script>
+<script src="/js/wrest.js?ver=2304171"></script>
+<script src="/js/placeholders.min.js?ver=2304171"></script>
+</head>
+<body>
+    <div id="wrap">
+<div id="login">
+		<div id="login-box" class="join">
+
+
+					<div class="logo"><img src="/data/common/logo_img2" alt="캔디Cast"></div>
+
+			<form name="flogin" action="/bbs/login_check.php" onsubmit="return flogin_submit(this);" method="post">
+			<input type="hidden" name="url" value="%2F">
+					<div class="required field"><div class="ui fluid input"><input placeholder="아이디" name="mb_id" id="login_id" value=""></div></div>
+					<div class="required field"><div class="ui fluid input"><input type="password" placeholder="비밀번호" name="mb_password" id="login_pw" value=""></div></div>
+					<section class="mt16 mb32">
+						<div class="ui checkbox big mr16">
+							<input id="keepLogin" class="hidden" name="loginKeep" tabindex="0" type="checkbox">
+							<label for="keepLogin">로그인 상태 유지</label></div>
+						<div class="ui checkbox big">
+							<input id="saveId" class="hidden" name="saveId" tabindex="0" type="checkbox">
+							<label for="saveId">아이디 저장</label></div>
+					</section>
+					<button type="submit" class="login-btn" style="margin-bottom: 4px;">로그인</button>
+		 </form>
+					<button class="join-btn" onclick="javascript:location.href='/bbs/register_form.php';">회원가입</button>
+					<div class="text-right"><a class="font-14 text-gray" href="/member/find/findId">아이디 찾기 &amp; 비밀번호 찾기</a></div>
+					<div class="sns-title">
+						<span class="SignIn_divider-bar__5ykQQ"></span>
+						<span style="font-size: 13px;">SNS 간편 로그인</span>
+						<span class="SignIn_divider-bar__5ykQQ"></span>
+					</div>
+					<div class="sns-btn">
+						<button>
+							<img src="/ftv/images/ico-kakao.png" width="52" height="52" alt="카카오 로그인 버튼"></button>
+						<button>
+							<img src="/ftv/images/ico-twitch.png" width="52" height="52" alt="트위치 로그인 버튼"></button>
+					</div>
+
+		</div>
+	</div>
+
+
+</div>
+
+	<div id="main-popup" style="display:none;">
+		<div class="main-popup-box">
+			<div class="mPop swiper mySwiper">
+				<div class="swiper-wrapper">
+					<div class="swiper-slide"><a href="#n"><img src="/ftv/images/d88a8948b5c32e04.png" alt=""></a></div>
+					<div class="swiper-slide"><a href="#n"><img src="/ftv/images/d88a8948b5c32e04.png" alt=""></a></div>
+					<div class="swiper-slide"><a href="#n"><img src="/ftv/images/d88a8948b5c32e04.png" alt=""></a></div>
+					<div class="swiper-slide"><a href="#n"><img src="/ftv/images/d88a8948b5c32e04.png" alt=""></a></div>
+					<div class="swiper-slide"><a href="#n"><img src="/ftv/images/d88a8948b5c32e04.png" alt=""></a></div>
+					<div class="swiper-slide"><a href="#n"><img src="/ftv/images/d88a8948b5c32e04.png" alt=""></a></div>
+				</div>
+				<div class="swiper-button-prev"></div>
+				<div class="swiper-button-next"></div>
+				<div class="swiper-pagination"></div>
+			</div>
+			<div class="btn-group">
+				<button class="btn-today">7일 동안 보지 않기</button>
+				<button class="btn-close">닫기</button>
+			</div>
+		</div>
+	</div>
+<script>
+
+$(window).on("load", function(){
+	//$("body").addClass("hide");
+});
+</script>
+
+
+<div id="myModal" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="closeModal()">&times;</span>
+        <div class="modal-header">알림</div>
+        <div class="modal-body">이것은 커스텀 알림 창입니다!</div>
+        <div class="modal-footer">
+            <button class="modal-button" onclick="closeModal()">닫기</button>
+        </div>
+    </div>
+<input type="hidden" id="closeurl">
+</div>
+
+
+<div class="export-popup" id="export-container"></div>
+<script>
+function upexport() {
+    $(".h-select > a").removeClass("on");
+    $(".h-select > div").hide();
+    var container = $("#export-container");
+    
+    // 清空容器并显示
+    container.empty().css({display: "flex"});
+    
+    $.ajax({
+        url: '/export_handler.php', // 后端处理脚本
+        method: 'GET',
+        success: function(data) {
+            container.html(data); // 将后端返回的内容插入容器
+        },
+        error: function() {
+            container.html('<p>加载失败，请稍后重试。</p>');
+        }
+    });
+}
+
+function closeExport() {
+    $("#export-container").css({display: "none"});
+}
+</script>
+
+</div>
+</body>
+</html>

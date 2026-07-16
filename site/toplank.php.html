@@ -1,0 +1,724 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="imagetoolbar" content="no">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<link rel="stylesheet" type="text/css" href="/ftv/css/swiper.min.css">
+<link rel="stylesheet" type="text/css" href="/ftv/css/layout.css">
+<script src="/ftv/js/jquery-1.11.3.min.js"></script>
+<script src="/ftv/js/swiper.min.js"></script>
+<script src="/ftv/js/js.js"></script>
+<meta name="naver-site-verification" content="9c693d971f0a2b2e6ff81f2f37a78afe54383c7e" />
+
+<meta name="google-site-verification" content="QZvk0cOzV3XwZ908srkcamfX5a4tiZTLstgbm6_HxrM" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="" />
+<meta property="og:title" content="캔디Cast" />
+<meta property="og:description" content="" />
+<meta property="og:image" content="/meta.png" />
+
+<!-- Twitter -->
+<meta property="twitter:card" content="summary_large_image" />
+<meta property="twitter:url" content="" />
+<meta property="twitter:title" content="캔디Cast" />
+<meta property="twitter:description" content="" />
+<meta property="twitter:image" content="/meta.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+<link rel="manifest" href="/site.webmanifest">
+<link rel="stylesheet" type="text/css" href="/css/show.css">
+<script src="/js/show.js"></script>
+<title>캔디Cast</title>
+
+<!--[if lte IE 8]>
+<script src="/js/html5.js"></script>
+<![endif]-->
+<script>
+// 자바스크립트에서 사용하는 전역변수 선언
+var g5_url       = "";
+var g5_bbs_url   = "/bbs";
+var g5_is_member = "";
+var g5_is_admin  = "";
+var g5_is_mobile = "";
+var g5_bo_table  = "";
+var g5_sca       = "";
+var g5_editor    = "";
+var g5_cookie_domain = "";
+var g5_theme_shop_url = "/theme/basic/shop";
+var g5_shop_url = "/shop";
+</script>
+<link rel="stylesheet" href="/js/font-awesome/css/font-awesome.min.css?ver=2303229">
+<script src="/js/jquery-1.12.4.min.js?ver=2304171"></script>
+<script src="/js/jquery-migrate-1.4.1.min.js?ver=2304171"></script>
+<script src="/js/jquery.menu.js?ver=2304171"></script>
+<script src="/js/common.js?ver=2304171"></script>
+<script src="/js/wrest.js?ver=2304171"></script>
+<script src="/js/placeholders.min.js?ver=2304171"></script>
+</head>
+<body>
+    <div id="wrap">
+
+<style>
+    
+.h-select3 button {
+    margin-left: 10px;
+    background: #fff;
+    border-radius: 3px;
+    border: 0;
+    width: 72px;
+    height: 30px;
+    line-height: 24px;
+    text-align: center;
+    cursor: pointer;
+}
+</style>
+<!-- 상단 시작 { -->
+
+<div id="header" class="clearfix">
+		<h1 id="logo"><a href="/"><img src="/data/common/logo_img" alt=""></a></h1>
+		<div class="header-con">
+			<div class="search">
+
+<form action="/toplank.php" method="get" id="serchfom">
+
+<input type="text" placeholder="두글자 이상 입력하세요." name="keyword" style="height: 32px;">
+<a href="#n" class="s-btn" onclick="javascript:document.getElementById('serchfom').submit();"><img src="/ftv/images/ico_search.png" alt=""></a></form></div>
+			<ul class="h-select3">
+			    <button type="button" onclick="javascript:showModal('관리자 승인후 방송가능 합니다.')">방송시작</button>
+			    <button type="button" onclick="location.href='/flex.php'">아이템샵</button>
+				<!--<li><a href="javascript:showModal('관리자 승인후 방송가능 합니다.')" class="h-icon1"></a></li>-->
+				<!--<li><a href="/flex.php" class="h-icon2"></a></li>-->
+			</ul>
+						<div class="h-select2">
+				<button type="button" onclick="javascript:location.href='/bbs/login.php';">로그인</button>
+				<button type="button" onclick="javascript:location.href='/bbs/register_form.php';">회원가입</button>
+			</div>
+					</div>
+	</div>
+
+<div id="container" class="main">
+		<div id="gnb">
+			<h2 class="clearfix"><a href="#n"></a><strong>추천채널</strong></h2>
+			<ul class="gnb-floor1">
+			    				    				<li><a href="/live.php?live_id=118"><img src="/data/file/live/2e364f18658d085706023eaf6dfa0d66_mN4Oo7TC_57b202382c799030f42c3521552cceec198ee89f.webp"style="height: 40px;width: 40px;object-fit: cover;"> 연화_. <span>Live</span></a></li>
+
+        				<li><a href="/live.php?live_id=155"><img src="/data/file/live/2e364f18658d085706023eaf6dfa0d66_kJmjR1OI_cee28a099041dab84aa7f8837e640c5a91630ffb.webp"style="height: 40px;width: 40px;object-fit: cover;"> 앙츄♥ <span>Live</span></a></li>
+
+        				<li><a href="/live.php?live_id=150"><img src="/data/file/live/2e364f18658d085706023eaf6dfa0d66_mhop9CiU_df04348f7ad692c03fbd5e08c9cbe0d17fd41dc6.webp"style="height: 40px;width: 40px;object-fit: cover;"> 이아깽 <span>Live</span></a></li>
+
+        				<li><a href="/live.php?live_id=335"><img src="/data/file/live/af9f9cbc33346e62be7c437697155075_9zvn2peq_9424e7d633caae3e49af4a967333276f134f8610.jpg"style="height: 40px;width: 40px;object-fit: cover;"> 이정린 <span>Live</span></a></li>
+
+        				<li><a href="/live.php?live_id=55"><img src="/data/file/live/2e364f18658d085706023eaf6dfa0d66_8WL0qIx6_fdee262db3bbdbf44a8dd1cd27ec4558d70e56b8.webp"style="height: 40px;width: 40px;object-fit: cover;"> BJ스카이 <span>Live</span></a></li>
+
+        				<li><a href="/live.php?live_id=114"><img src="/data/file/live/2e364f18658d085706023eaf6dfa0d66_NrIXPznD_ccc32fe06d69a9bf4fd2b524781f32e643b5b8c2.webp"style="height: 40px;width: 40px;object-fit: cover;"> 파닥♥ <span>Live</span></a></li>
+
+        				<li><a href="/live.php?live_id=120"><img src="/data/file/live/2e364f18658d085706023eaf6dfa0d66_S19RUMIu_9d56503099be6b182b3ab915b3272ca37b946a13.webp"style="height: 40px;width: 40px;object-fit: cover;"> 지아콩♥ <span>Live</span></a></li>
+
+        				<li><a href="/live.php?live_id=313"><img src="/data/file/live/1954a333295393dfd8612a37fca6f7d7_hNTOz03t_d4e293577c428bdda30d92b120d36e837f4649b2.jpg"style="height: 40px;width: 40px;object-fit: cover;"> 혜령♥️ <span>Live</span></a></li>
+
+        				<li><a href="/live.php?live_id=93"><img src="/data/file/live/22b0add3f28e2a92b6985263d8ea6055_mEy73ZdJ_af4ff8ae1e04e18ec7bccc53b0b4cea4d7c45e1c.webp"style="height: 40px;width: 40px;object-fit: cover;">  [SD]수달 <span>Live</span></a></li>
+
+        				<li><a href="/live.php?live_id=94"><img src="/data/file/live/22b0add3f28e2a92b6985263d8ea6055_O1xvt7ai_273bf200b0f3f63baba753b91a91365026d67a31.webp"style="height: 40px;width: 40px;object-fit: cover;"> 정승호. <span>Live</span></a></li>
+
+    			    
+
+			</ul>
+			<div class="gnbf1-btn"><a href="#n"><span>더보기</span></a></div>
+			<ul class="gnb-floor2">
+			    <li><a href="/"><img src="/ftv/images/ico_home.svg" alt=""> 홈</a></li>
+				<li><a href="/toplank.php"><img src="/ftv/images/ico_rank.svg" alt=""> TOP 랭킹</a></li>
+				<li><a href="/chatlist.php"><img src="/ftv/images/ico_vod.svg" alt="">채팅리스트</a></li>
+				<!--<li><a href="/bbs/board.php?bo_table=notice"><img src="/ftv/images/ico_notice.svg" alt=""> 이벤트</a></li>-->
+				
+				<li><a href="/flex.php"><img src="/ftv/images/ico_cart.svg" alt=""> 아이템샵</a></li>
+                				<li><a href="/bbs/board.php?bo_table=notice"><img src="/ftv/images/ico_notice.svg" alt=""> 공지사항</a></li>
+				<!--li><a href="#n"><img src="/ftv/images/event.svg" alt=""> 고객센터</a></li-->
+				<li><a href="/bbs/faq.php"><img src="/ftv/images/event.svg" alt=""> 자주하는 질문</a></li>
+			</ul>
+		</div>
+		<div id="contents"><link rel="stylesheet" type="text/css" href="/theme/basic/3dbd1524640ed299.css">
+<div class="content-body">
+	<div>
+		<div class="section-wrap" style="background-color: rgb(18, 18, 18);border-radius: 10px;">
+			<div class="content-root section-inner pb-6 pt-2">
+				<h2 class="ui header" style="color: rgb(255, 255, 255);"> 월간 캔디 TOP 5</h2>
+				<div class="video-section-root no-scroll ui vertical segment" style="overflow: auto;">
+					<div class="grid-container">
+
+<div class="popular-list-item">
+    <div class="popular-item">
+        <a href="#">
+        <img class="ui circular image" src="/data/file/top/thumb-f0f26678e70d4774a958abb6aaabde3b_MCuTvRNG_ea91dc168ab373c6eb808327df6b354a8a1e32cc_150x150.jpg" style="border: 1px solid rgb(50, 50, 50);" />        </a>
+        <div class="box-ellipsis" style="margin: 0px auto 8px; font-size: 16px; font-weight: 500; color: rgb(255, 255, 255); padding-bottom: 8px; border-bottom: 1px solid rgb(100, 100, 100); min-height: 29px;">
+        ♡신규 주희랑함께 ♥ </div>
+        <div style="margin: 0px auto;text-align:left;"><span style="font-size: 13px; color: rgb(255, 255, 255); padding-right: 5px;">시청자</span><span class="description" style="font-size: 13px; float: right;">8.8K</span></div>
+			<div style="margin: 2px auto;text-align:left;"><span style="font-size: 13px; color: rgb(255, 255, 255); padding-right: 5px;">랭킹점수</span><span class="description" style="font-size: 13px; float: right;">8.8M</span></div>
+			</div>
+		</div>
+    <div class="popular-list-item">
+    <div class="popular-item">
+        <a href="#">
+        <img class="ui circular image" src="/data/file/top/thumb-2e364f18658d085706023eaf6dfa0d66_XBntv9Gx_cfe92b9d5b7f3f7afff1630d1e58173e8de78d4b_150x150.jpg" style="border: 1px solid rgb(50, 50, 50);" />        </a>
+        <div class="box-ellipsis" style="margin: 0px auto 8px; font-size: 16px; font-weight: 500; color: rgb(255, 255, 255); padding-bottom: 8px; border-bottom: 1px solid rgb(100, 100, 100); min-height: 29px;">
+         해외컨텐츠 어디로 가야할까요 !?</div>
+        <div style="margin: 0px auto;text-align:left;"><span style="font-size: 13px; color: rgb(255, 255, 255); padding-right: 5px;">시청자</span><span class="description" style="font-size: 13px; float: right;">7.5K</span></div>
+			<div style="margin: 2px auto;text-align:left;"><span style="font-size: 13px; color: rgb(255, 255, 255); padding-right: 5px;">랭킹점수</span><span class="description" style="font-size: 13px; float: right;">6.9M</span></div>
+			</div>
+		</div>
+    <div class="popular-list-item">
+    <div class="popular-item">
+        <a href="#">
+        <img class="ui circular image" src="/data/file/top/thumb-2e364f18658d085706023eaf6dfa0d66_AgGJ9t5s_0cadb809ae5053ae304507d36d95ebf3aafed689_150x150.jpg" style="border: 1px solid rgb(50, 50, 50);" />        </a>
+        <div class="box-ellipsis" style="margin: 0px auto 8px; font-size: 16px; font-weight: 500; color: rgb(255, 255, 255); padding-bottom: 8px; border-bottom: 1px solid rgb(100, 100, 100); min-height: 29px;">
+         비상!!!! 토너먼트 출근방송 ♡ [이노레이블 사원]</div>
+        <div style="margin: 0px auto;text-align:left;"><span style="font-size: 13px; color: rgb(255, 255, 255); padding-right: 5px;">시청자</span><span class="description" style="font-size: 13px; float: right;">7.1K</span></div>
+			<div style="margin: 2px auto;text-align:left;"><span style="font-size: 13px; color: rgb(255, 255, 255); padding-right: 5px;">랭킹점수</span><span class="description" style="font-size: 13px; float: right;">6.6M</span></div>
+			</div>
+		</div>
+    <div class="popular-list-item">
+    <div class="popular-item">
+        <a href="#">
+        <img class="ui circular image" src="/data/file/top/thumb-2e364f18658d085706023eaf6dfa0d66_DN3U8zoy_4391c1d1d85f129577122a886e70ff43fbe1b439_150x150.jpg" style="border: 1px solid rgb(50, 50, 50);" />        </a>
+        <div class="box-ellipsis" style="margin: 0px auto 8px; font-size: 16px; font-weight: 500; color: rgb(255, 255, 255); padding-bottom: 8px; border-bottom: 1px solid rgb(100, 100, 100); min-height: 29px;">
+        ♥ 콩빠들 모여라 얍!! ♥</div>
+        <div style="margin: 0px auto;text-align:left;"><span style="font-size: 13px; color: rgb(255, 255, 255); padding-right: 5px;">시청자</span><span class="description" style="font-size: 13px; float: right;">7.1K</span></div>
+			<div style="margin: 2px auto;text-align:left;"><span style="font-size: 13px; color: rgb(255, 255, 255); padding-right: 5px;">랭킹점수</span><span class="description" style="font-size: 13px; float: right;">8.6M</span></div>
+			</div>
+		</div>
+    <div class="popular-list-item">
+    <div class="popular-item">
+        <a href="#">
+        <img class="ui circular image" src="/data/file/top/thumb-09b526784838abcf4c3159bc9d9816e0_nlG4wr3y_c9b4c39c555ce6565d9c0f67e4c8186a923d0527_150x150.jpg" style="border: 1px solid rgb(50, 50, 50);" />        </a>
+        <div class="box-ellipsis" style="margin: 0px auto 8px; font-size: 16px; font-weight: 500; color: rgb(255, 255, 255); padding-bottom: 8px; border-bottom: 1px solid rgb(100, 100, 100); min-height: 29px;">
+        미션 수행방 ~</div>
+        <div style="margin: 0px auto;text-align:left;"><span style="font-size: 13px; color: rgb(255, 255, 255); padding-right: 5px;">시청자</span><span class="description" style="font-size: 13px; float: right;">7.0K</span></div>
+			<div style="margin: 2px auto;text-align:left;"><span style="font-size: 13px; color: rgb(255, 255, 255); padding-right: 5px;">랭킹점수</span><span class="description" style="font-size: 13px; float: right;">6.5M</span></div>
+			</div>
+		</div>
+    
+
+					</div>
+				</div>
+			</div>
+		</div>
+
+
+
+
+		<div class="section-wrap mt-9">
+			<div class="content-root section-inner">
+				<h2 class="ui header text-black-900">TOP 랭킹</h2>
+				<div class="type07" data-rttabs="true">
+
+					<div class="react-tabs__tab-panel react-tabs__tab-panel--selected" role="tabpanel" id="react-tabs-1" aria-labelledby="react-tabs-0">
+
+						<div style="display: flex; flex-direction: row-reverse;">
+							<div style="width: 100%;">
+								<table class="flx-table mt6" cellspacing="0" cellpadding="0" style="width: 100%;">
+									<colgroup>
+										<col width="7%" />
+										<col width="*" />
+										<col width="15%" />
+										<col width="15%" />
+									</colgroup>
+									<thead class="bg-[#f0f1f2] text-[#666666]">
+										<tr>
+											<th class="left">순위</th>
+											<th>방송국</th>
+											<th>시청자</th>
+											<th>인기점수</th>
+										</tr>
+									</thead>
+									<tbody>
+										<tr>
+											<td><span class="ranking_1" style="font-size: 30px; border-bottom: 1px solid rgb(161, 161, 161);">1</span></td>
+											<td>
+												<div style="margin: 15px 0px;">
+													<div class="flex flex-wrap items-center">
+														<a>
+															<img class="ui circular image" src="/data/file/top/thumb-f0f26678e70d4774a958abb6aaabde3b_MCuTvRNG_ea91dc168ab373c6eb808327df6b354a8a1e32cc_80x80.jpg" style="width: 80px; height: 80px;" />														</a>
+														<div style="margin-left: 20px; text-align: left; flex: 1 1 0%; max-width: calc(100% - 100px);">
+															<a><p style="color: rgb(0, 0, 0); font-size: 18px; font-weight: 500; margin-bottom: 5px; text-overflow: ellipsis; overflow: hidden;">♡신규 주희랑함께 ♥ </p></a>
+															<p style="color: rgb(0, 0, 0); font-size: 18px; font-weight: 500; text-align: left;">Bj주희</p>
+														</div>
+													</div>
+												</div>
+											</td>
+											<td>
+												<div class="flex items-center justify-center" style="background-color: rgb(233, 243, 251); height: 64px; border-radius: 10px; flex-direction: column;">
+													<div class="flex flex-wrap items-center" style="background-color: rgb(157, 209, 249); width: 21px; border-radius: 10px; height: 21px; justify-content: center;">
+														<img class="ui image" src="/favicon-16x16.png" style="width: 12px; height: 12px;" />
+													</div>
+													<div style="color: rgb(52, 108, 154);">8.8K</div>
+												</div>
+											</td>
+											<td>
+												<div class="flex items-center justify-center" style="background-color: rgb(235, 247, 242); height: 64px; border-radius: 10px; flex-direction: column;">
+													<div class="flex flex-wrap items-center" style="background-color: rgb(157, 223, 200); width: 21px; border-radius: 10px; height: 21px; justify-content: center;">
+														<img class="ui image" src="/favicon-16x16.png" style="width: 12px; height: 12px;" />
+													</div>
+													<div style="color: rgb(52, 108, 154);">8.8M</div>
+												</div>
+											</td>
+										</tr>
+    										<tr>
+											<td><span class="ranking_1" style="font-size: 30px; border-bottom: 1px solid rgb(161, 161, 161);">2</span></td>
+											<td>
+												<div style="margin: 15px 0px;">
+													<div class="flex flex-wrap items-center">
+														<a>
+															<img class="ui circular image" src="/data/file/top/thumb-2e364f18658d085706023eaf6dfa0d66_XBntv9Gx_cfe92b9d5b7f3f7afff1630d1e58173e8de78d4b_80x80.jpg" style="width: 80px; height: 80px;" />														</a>
+														<div style="margin-left: 20px; text-align: left; flex: 1 1 0%; max-width: calc(100% - 100px);">
+															<a><p style="color: rgb(0, 0, 0); font-size: 18px; font-weight: 500; margin-bottom: 5px; text-overflow: ellipsis; overflow: hidden;"> 해외컨텐츠 어디로 가야할까요 !?</p></a>
+															<p style="color: rgb(0, 0, 0); font-size: 18px; font-weight: 500; text-align: left;">하연진♡</p>
+														</div>
+													</div>
+												</div>
+											</td>
+											<td>
+												<div class="flex items-center justify-center" style="background-color: rgb(233, 243, 251); height: 64px; border-radius: 10px; flex-direction: column;">
+													<div class="flex flex-wrap items-center" style="background-color: rgb(157, 209, 249); width: 21px; border-radius: 10px; height: 21px; justify-content: center;">
+														<img class="ui image" src="/favicon-16x16.png" style="width: 12px; height: 12px;" />
+													</div>
+													<div style="color: rgb(52, 108, 154);">7.5K</div>
+												</div>
+											</td>
+											<td>
+												<div class="flex items-center justify-center" style="background-color: rgb(235, 247, 242); height: 64px; border-radius: 10px; flex-direction: column;">
+													<div class="flex flex-wrap items-center" style="background-color: rgb(157, 223, 200); width: 21px; border-radius: 10px; height: 21px; justify-content: center;">
+														<img class="ui image" src="/favicon-16x16.png" style="width: 12px; height: 12px;" />
+													</div>
+													<div style="color: rgb(52, 108, 154);">6.9M</div>
+												</div>
+											</td>
+										</tr>
+    										<tr>
+											<td><span class="ranking_1" style="font-size: 30px; border-bottom: 1px solid rgb(161, 161, 161);">3</span></td>
+											<td>
+												<div style="margin: 15px 0px;">
+													<div class="flex flex-wrap items-center">
+														<a>
+															<img class="ui circular image" src="/data/file/top/thumb-2e364f18658d085706023eaf6dfa0d66_AgGJ9t5s_0cadb809ae5053ae304507d36d95ebf3aafed689_80x80.jpg" style="width: 80px; height: 80px;" />														</a>
+														<div style="margin-left: 20px; text-align: left; flex: 1 1 0%; max-width: calc(100% - 100px);">
+															<a><p style="color: rgb(0, 0, 0); font-size: 18px; font-weight: 500; margin-bottom: 5px; text-overflow: ellipsis; overflow: hidden;"> 비상!!!! 토너먼트 출근방송 ♡ [이노레이블 사원]</p></a>
+															<p style="color: rgb(0, 0, 0); font-size: 18px; font-weight: 500; text-align: left;">임지안♥</p>
+														</div>
+													</div>
+												</div>
+											</td>
+											<td>
+												<div class="flex items-center justify-center" style="background-color: rgb(233, 243, 251); height: 64px; border-radius: 10px; flex-direction: column;">
+													<div class="flex flex-wrap items-center" style="background-color: rgb(157, 209, 249); width: 21px; border-radius: 10px; height: 21px; justify-content: center;">
+														<img class="ui image" src="/favicon-16x16.png" style="width: 12px; height: 12px;" />
+													</div>
+													<div style="color: rgb(52, 108, 154);">7.1K</div>
+												</div>
+											</td>
+											<td>
+												<div class="flex items-center justify-center" style="background-color: rgb(235, 247, 242); height: 64px; border-radius: 10px; flex-direction: column;">
+													<div class="flex flex-wrap items-center" style="background-color: rgb(157, 223, 200); width: 21px; border-radius: 10px; height: 21px; justify-content: center;">
+														<img class="ui image" src="/favicon-16x16.png" style="width: 12px; height: 12px;" />
+													</div>
+													<div style="color: rgb(52, 108, 154);">6.6M</div>
+												</div>
+											</td>
+										</tr>
+    										<tr>
+											<td><span class="ranking_1" style="font-size: 30px; border-bottom: 1px solid rgb(161, 161, 161);">4</span></td>
+											<td>
+												<div style="margin: 15px 0px;">
+													<div class="flex flex-wrap items-center">
+														<a>
+															<img class="ui circular image" src="/data/file/top/thumb-2e364f18658d085706023eaf6dfa0d66_DN3U8zoy_4391c1d1d85f129577122a886e70ff43fbe1b439_80x80.jpg" style="width: 80px; height: 80px;" />														</a>
+														<div style="margin-left: 20px; text-align: left; flex: 1 1 0%; max-width: calc(100% - 100px);">
+															<a><p style="color: rgb(0, 0, 0); font-size: 18px; font-weight: 500; margin-bottom: 5px; text-overflow: ellipsis; overflow: hidden;">♥ 콩빠들 모여라 얍!! ♥</p></a>
+															<p style="color: rgb(0, 0, 0); font-size: 18px; font-weight: 500; text-align: left;">지아콩♥</p>
+														</div>
+													</div>
+												</div>
+											</td>
+											<td>
+												<div class="flex items-center justify-center" style="background-color: rgb(233, 243, 251); height: 64px; border-radius: 10px; flex-direction: column;">
+													<div class="flex flex-wrap items-center" style="background-color: rgb(157, 209, 249); width: 21px; border-radius: 10px; height: 21px; justify-content: center;">
+														<img class="ui image" src="/favicon-16x16.png" style="width: 12px; height: 12px;" />
+													</div>
+													<div style="color: rgb(52, 108, 154);">7.1K</div>
+												</div>
+											</td>
+											<td>
+												<div class="flex items-center justify-center" style="background-color: rgb(235, 247, 242); height: 64px; border-radius: 10px; flex-direction: column;">
+													<div class="flex flex-wrap items-center" style="background-color: rgb(157, 223, 200); width: 21px; border-radius: 10px; height: 21px; justify-content: center;">
+														<img class="ui image" src="/favicon-16x16.png" style="width: 12px; height: 12px;" />
+													</div>
+													<div style="color: rgb(52, 108, 154);">8.6M</div>
+												</div>
+											</td>
+										</tr>
+    										<tr>
+											<td><span class="ranking_1" style="font-size: 30px; border-bottom: 1px solid rgb(161, 161, 161);">5</span></td>
+											<td>
+												<div style="margin: 15px 0px;">
+													<div class="flex flex-wrap items-center">
+														<a>
+															<img class="ui circular image" src="/data/file/top/thumb-09b526784838abcf4c3159bc9d9816e0_nlG4wr3y_c9b4c39c555ce6565d9c0f67e4c8186a923d0527_80x80.jpg" style="width: 80px; height: 80px;" />														</a>
+														<div style="margin-left: 20px; text-align: left; flex: 1 1 0%; max-width: calc(100% - 100px);">
+															<a><p style="color: rgb(0, 0, 0); font-size: 18px; font-weight: 500; margin-bottom: 5px; text-overflow: ellipsis; overflow: hidden;">미션 수행방 ~</p></a>
+															<p style="color: rgb(0, 0, 0); font-size: 18px; font-weight: 500; text-align: left;">지지미닌</p>
+														</div>
+													</div>
+												</div>
+											</td>
+											<td>
+												<div class="flex items-center justify-center" style="background-color: rgb(233, 243, 251); height: 64px; border-radius: 10px; flex-direction: column;">
+													<div class="flex flex-wrap items-center" style="background-color: rgb(157, 209, 249); width: 21px; border-radius: 10px; height: 21px; justify-content: center;">
+														<img class="ui image" src="/favicon-16x16.png" style="width: 12px; height: 12px;" />
+													</div>
+													<div style="color: rgb(52, 108, 154);">7.0K</div>
+												</div>
+											</td>
+											<td>
+												<div class="flex items-center justify-center" style="background-color: rgb(235, 247, 242); height: 64px; border-radius: 10px; flex-direction: column;">
+													<div class="flex flex-wrap items-center" style="background-color: rgb(157, 223, 200); width: 21px; border-radius: 10px; height: 21px; justify-content: center;">
+														<img class="ui image" src="/favicon-16x16.png" style="width: 12px; height: 12px;" />
+													</div>
+													<div style="color: rgb(52, 108, 154);">6.5M</div>
+												</div>
+											</td>
+										</tr>
+    										<tr>
+											<td><span class="ranking_1" style="font-size: 30px; border-bottom: 1px solid rgb(161, 161, 161);">6</span></td>
+											<td>
+												<div style="margin: 15px 0px;">
+													<div class="flex flex-wrap items-center">
+														<a>
+															<img class="ui circular image" src="/data/file/top/thumb-2e364f18658d085706023eaf6dfa0d66_r1UxObj3_cc9843c98f68c148070005067ba68fc01dc5c424_80x80.jpg" style="width: 80px; height: 80px;" />														</a>
+														<div style="margin-left: 20px; text-align: left; flex: 1 1 0%; max-width: calc(100% - 100px);">
+															<a><p style="color: rgb(0, 0, 0); font-size: 18px; font-weight: 500; margin-bottom: 5px; text-overflow: ellipsis; overflow: hidden;">웃스닥 살려주십쇼..</p></a>
+															<p style="color: rgb(0, 0, 0); font-size: 18px; font-weight: 500; text-align: left;">웃찌이:)</p>
+														</div>
+													</div>
+												</div>
+											</td>
+											<td>
+												<div class="flex items-center justify-center" style="background-color: rgb(233, 243, 251); height: 64px; border-radius: 10px; flex-direction: column;">
+													<div class="flex flex-wrap items-center" style="background-color: rgb(157, 209, 249); width: 21px; border-radius: 10px; height: 21px; justify-content: center;">
+														<img class="ui image" src="/favicon-16x16.png" style="width: 12px; height: 12px;" />
+													</div>
+													<div style="color: rgb(52, 108, 154);">6.2K</div>
+												</div>
+											</td>
+											<td>
+												<div class="flex items-center justify-center" style="background-color: rgb(235, 247, 242); height: 64px; border-radius: 10px; flex-direction: column;">
+													<div class="flex flex-wrap items-center" style="background-color: rgb(157, 223, 200); width: 21px; border-radius: 10px; height: 21px; justify-content: center;">
+														<img class="ui image" src="/favicon-16x16.png" style="width: 12px; height: 12px;" />
+													</div>
+													<div style="color: rgb(52, 108, 154);">5.1M</div>
+												</div>
+											</td>
+										</tr>
+    										<tr>
+											<td><span class="ranking_1" style="font-size: 30px; border-bottom: 1px solid rgb(161, 161, 161);">7</span></td>
+											<td>
+												<div style="margin: 15px 0px;">
+													<div class="flex flex-wrap items-center">
+														<a>
+															<img class="ui circular image" src="/data/file/top/thumb-2e364f18658d085706023eaf6dfa0d66_UisYyAel_549ae9fb81e47872ca3a96e9c6b7c1914a8e41a4_80x80.jpg" style="width: 80px; height: 80px;" />														</a>
+														<div style="margin-left: 20px; text-align: left; flex: 1 1 0%; max-width: calc(100% - 100px);">
+															<a><p style="color: rgb(0, 0, 0); font-size: 18px; font-weight: 500; margin-bottom: 5px; text-overflow: ellipsis; overflow: hidden;">팬님들 감사합니다 경로당 화이팅! 찐 신입여캠</p></a>
+															<p style="color: rgb(0, 0, 0); font-size: 18px; font-weight: 500; text-align: left;">박수진♥</p>
+														</div>
+													</div>
+												</div>
+											</td>
+											<td>
+												<div class="flex items-center justify-center" style="background-color: rgb(233, 243, 251); height: 64px; border-radius: 10px; flex-direction: column;">
+													<div class="flex flex-wrap items-center" style="background-color: rgb(157, 209, 249); width: 21px; border-radius: 10px; height: 21px; justify-content: center;">
+														<img class="ui image" src="/favicon-16x16.png" style="width: 12px; height: 12px;" />
+													</div>
+													<div style="color: rgb(52, 108, 154);">6.1K</div>
+												</div>
+											</td>
+											<td>
+												<div class="flex items-center justify-center" style="background-color: rgb(235, 247, 242); height: 64px; border-radius: 10px; flex-direction: column;">
+													<div class="flex flex-wrap items-center" style="background-color: rgb(157, 223, 200); width: 21px; border-radius: 10px; height: 21px; justify-content: center;">
+														<img class="ui image" src="/favicon-16x16.png" style="width: 12px; height: 12px;" />
+													</div>
+													<div style="color: rgb(52, 108, 154);">8.5M</div>
+												</div>
+											</td>
+										</tr>
+    										<tr>
+											<td><span class="ranking_1" style="font-size: 30px; border-bottom: 1px solid rgb(161, 161, 161);">8</span></td>
+											<td>
+												<div style="margin: 15px 0px;">
+													<div class="flex flex-wrap items-center">
+														<a>
+															<img class="ui circular image" src="/data/file/top/thumb-2e364f18658d085706023eaf6dfa0d66_FDdbGk2l_95cf657964fa4ae6200f0a4e0c2a3153bca4af8e_80x80.jpg" style="width: 80px; height: 80px;" />														</a>
+														<div style="margin-left: 20px; text-align: left; flex: 1 1 0%; max-width: calc(100% - 100px);">
+															<a><p style="color: rgb(0, 0, 0); font-size: 18px; font-weight: 500; margin-bottom: 5px; text-overflow: ellipsis; overflow: hidden;">이노레이블 인턴) 출근풍의 귀인분모셔욘</p></a>
+															<p style="color: rgb(0, 0, 0); font-size: 18px; font-weight: 500; text-align: left;">누리-</p>
+														</div>
+													</div>
+												</div>
+											</td>
+											<td>
+												<div class="flex items-center justify-center" style="background-color: rgb(233, 243, 251); height: 64px; border-radius: 10px; flex-direction: column;">
+													<div class="flex flex-wrap items-center" style="background-color: rgb(157, 209, 249); width: 21px; border-radius: 10px; height: 21px; justify-content: center;">
+														<img class="ui image" src="/favicon-16x16.png" style="width: 12px; height: 12px;" />
+													</div>
+													<div style="color: rgb(52, 108, 154);">5.8K</div>
+												</div>
+											</td>
+											<td>
+												<div class="flex items-center justify-center" style="background-color: rgb(235, 247, 242); height: 64px; border-radius: 10px; flex-direction: column;">
+													<div class="flex flex-wrap items-center" style="background-color: rgb(157, 223, 200); width: 21px; border-radius: 10px; height: 21px; justify-content: center;">
+														<img class="ui image" src="/favicon-16x16.png" style="width: 12px; height: 12px;" />
+													</div>
+													<div style="color: rgb(52, 108, 154);">4.9M</div>
+												</div>
+											</td>
+										</tr>
+    										<tr>
+											<td><span class="ranking_1" style="font-size: 30px; border-bottom: 1px solid rgb(161, 161, 161);">9</span></td>
+											<td>
+												<div style="margin: 15px 0px;">
+													<div class="flex flex-wrap items-center">
+														<a>
+															<img class="ui circular image" src="/data/file/top/thumb-2e364f18658d085706023eaf6dfa0d66_gm8w16z9_fc1bd7533151c9a62cf37a98ce59f3adddd428f2_80x80.jpg" style="width: 80px; height: 80px;" />														</a>
+														<div style="margin-left: 20px; text-align: left; flex: 1 1 0%; max-width: calc(100% - 100px);">
+															<a><p style="color: rgb(0, 0, 0); font-size: 18px; font-weight: 500; margin-bottom: 5px; text-overflow: ellipsis; overflow: hidden;">이노레이블 오늘 컨텐츠 토너먼트 날씨 조타아아~~</p></a>
+															<p style="color: rgb(0, 0, 0); font-size: 18px; font-weight: 500; text-align: left;">너의˚멜로디</p>
+														</div>
+													</div>
+												</div>
+											</td>
+											<td>
+												<div class="flex items-center justify-center" style="background-color: rgb(233, 243, 251); height: 64px; border-radius: 10px; flex-direction: column;">
+													<div class="flex flex-wrap items-center" style="background-color: rgb(157, 209, 249); width: 21px; border-radius: 10px; height: 21px; justify-content: center;">
+														<img class="ui image" src="/favicon-16x16.png" style="width: 12px; height: 12px;" />
+													</div>
+													<div style="color: rgb(52, 108, 154);">5.6K</div>
+												</div>
+											</td>
+											<td>
+												<div class="flex items-center justify-center" style="background-color: rgb(235, 247, 242); height: 64px; border-radius: 10px; flex-direction: column;">
+													<div class="flex flex-wrap items-center" style="background-color: rgb(157, 223, 200); width: 21px; border-radius: 10px; height: 21px; justify-content: center;">
+														<img class="ui image" src="/favicon-16x16.png" style="width: 12px; height: 12px;" />
+													</div>
+													<div style="color: rgb(52, 108, 154);">7.3M</div>
+												</div>
+											</td>
+										</tr>
+    										<tr>
+											<td><span class="ranking_1" style="font-size: 30px; border-bottom: 1px solid rgb(161, 161, 161);">10</span></td>
+											<td>
+												<div style="margin: 15px 0px;">
+													<div class="flex flex-wrap items-center">
+														<a>
+															<img class="ui circular image" src="/data/file/top/thumb-2e364f18658d085706023eaf6dfa0d66_QabyE6Ye_f09e57427d831f7ea0daac01e13a34fd104aa46c_80x80.jpg" style="width: 80px; height: 80px;" />														</a>
+														<div style="margin-left: 20px; text-align: left; flex: 1 1 0%; max-width: calc(100% - 100px);">
+															<a><p style="color: rgb(0, 0, 0); font-size: 18px; font-weight: 500; margin-bottom: 5px; text-overflow: ellipsis; overflow: hidden;">777닥사원 밥좀 먹을게용</p></a>
+															<p style="color: rgb(0, 0, 0); font-size: 18px; font-weight: 500; text-align: left;">파닥♥</p>
+														</div>
+													</div>
+												</div>
+											</td>
+											<td>
+												<div class="flex items-center justify-center" style="background-color: rgb(233, 243, 251); height: 64px; border-radius: 10px; flex-direction: column;">
+													<div class="flex flex-wrap items-center" style="background-color: rgb(157, 209, 249); width: 21px; border-radius: 10px; height: 21px; justify-content: center;">
+														<img class="ui image" src="/favicon-16x16.png" style="width: 12px; height: 12px;" />
+													</div>
+													<div style="color: rgb(52, 108, 154);">5.1K</div>
+												</div>
+											</td>
+											<td>
+												<div class="flex items-center justify-center" style="background-color: rgb(235, 247, 242); height: 64px; border-radius: 10px; flex-direction: column;">
+													<div class="flex flex-wrap items-center" style="background-color: rgb(157, 223, 200); width: 21px; border-radius: 10px; height: 21px; justify-content: center;">
+														<img class="ui image" src="/favicon-16x16.png" style="width: 12px; height: 12px;" />
+													</div>
+													<div style="color: rgb(52, 108, 154);">6.5M</div>
+												</div>
+											</td>
+										</tr>
+    										<tr>
+											<td><span class="ranking_1" style="font-size: 30px; border-bottom: 1px solid rgb(161, 161, 161);">11</span></td>
+											<td>
+												<div style="margin: 15px 0px;">
+													<div class="flex flex-wrap items-center">
+														<a>
+															<img class="ui circular image" src="/data/file/top/thumb-2e364f18658d085706023eaf6dfa0d66_HMe9FoVK_06cee786ed26c978e3a67dce7c89e048134bb1eb_80x80.jpg" style="width: 80px; height: 80px;" />														</a>
+														<div style="margin-left: 20px; text-align: left; flex: 1 1 0%; max-width: calc(100% - 100px);">
+															<a><p style="color: rgb(0, 0, 0); font-size: 18px; font-weight: 500; margin-bottom: 5px; text-overflow: ellipsis; overflow: hidden;">함께한 시간만큼 더 소중한 우리♥</p></a>
+															<p style="color: rgb(0, 0, 0); font-size: 18px; font-weight: 500; text-align: left;">오솔*</p>
+														</div>
+													</div>
+												</div>
+											</td>
+											<td>
+												<div class="flex items-center justify-center" style="background-color: rgb(233, 243, 251); height: 64px; border-radius: 10px; flex-direction: column;">
+													<div class="flex flex-wrap items-center" style="background-color: rgb(157, 209, 249); width: 21px; border-radius: 10px; height: 21px; justify-content: center;">
+														<img class="ui image" src="/favicon-16x16.png" style="width: 12px; height: 12px;" />
+													</div>
+													<div style="color: rgb(52, 108, 154);">4.8K</div>
+												</div>
+											</td>
+											<td>
+												<div class="flex items-center justify-center" style="background-color: rgb(235, 247, 242); height: 64px; border-radius: 10px; flex-direction: column;">
+													<div class="flex flex-wrap items-center" style="background-color: rgb(157, 223, 200); width: 21px; border-radius: 10px; height: 21px; justify-content: center;">
+														<img class="ui image" src="/favicon-16x16.png" style="width: 12px; height: 12px;" />
+													</div>
+													<div style="color: rgb(52, 108, 154);">5.7M</div>
+												</div>
+											</td>
+										</tr>
+    										<tr>
+											<td><span class="ranking_1" style="font-size: 30px; border-bottom: 1px solid rgb(161, 161, 161);">12</span></td>
+											<td>
+												<div style="margin: 15px 0px;">
+													<div class="flex flex-wrap items-center">
+														<a>
+															<img class="ui circular image" src="/data/file/top/thumb-2e364f18658d085706023eaf6dfa0d66_HG90zhL7_f7b75bf672a19e98904ab91910f91784956558cb_80x80.jpg" style="width: 80px; height: 80px;" />														</a>
+														<div style="margin-left: 20px; text-align: left; flex: 1 1 0%; max-width: calc(100% - 100px);">
+															<a><p style="color: rgb(0, 0, 0); font-size: 18px; font-weight: 500; margin-bottom: 5px; text-overflow: ellipsis; overflow: hidden;">나한테 좋은 사람 너한테 좋은 사람..!!</p></a>
+															<p style="color: rgb(0, 0, 0); font-size: 18px; font-weight: 500; text-align: left;">＊윤나라</p>
+														</div>
+													</div>
+												</div>
+											</td>
+											<td>
+												<div class="flex items-center justify-center" style="background-color: rgb(233, 243, 251); height: 64px; border-radius: 10px; flex-direction: column;">
+													<div class="flex flex-wrap items-center" style="background-color: rgb(157, 209, 249); width: 21px; border-radius: 10px; height: 21px; justify-content: center;">
+														<img class="ui image" src="/favicon-16x16.png" style="width: 12px; height: 12px;" />
+													</div>
+													<div style="color: rgb(52, 108, 154);">4.2K</div>
+												</div>
+											</td>
+											<td>
+												<div class="flex items-center justify-center" style="background-color: rgb(235, 247, 242); height: 64px; border-radius: 10px; flex-direction: column;">
+													<div class="flex flex-wrap items-center" style="background-color: rgb(157, 223, 200); width: 21px; border-radius: 10px; height: 21px; justify-content: center;">
+														<img class="ui image" src="/favicon-16x16.png" style="width: 12px; height: 12px;" />
+													</div>
+													<div style="color: rgb(52, 108, 154);">5.1M</div>
+												</div>
+											</td>
+										</tr>
+    
+									</tbody>
+								</table>
+								<div></div>
+							</div>
+						</div>
+					</div>
+					<div class="react-tabs__tab-panel" role="tabpanel" id="react-tabs-3" aria-labelledby="react-tabs-2"></div>
+					<div class="react-tabs__tab-panel" role="tabpanel" id="react-tabs-5" aria-labelledby="react-tabs-4"></div>
+					<div class="react-tabs__tab-panel" role="tabpanel" id="react-tabs-7" aria-labelledby="react-tabs-6"></div>
+					<div class="react-tabs__tab-panel" role="tabpanel" id="react-tabs-9" aria-labelledby="react-tabs-8"></div>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+
+
+
+
+
+<div id="footer">
+				<div class="f-menu">
+					<ul class="clearfix">
+						<li><a href="#n">이용약관</a></li>
+						<li><a href="#n">개인정보방침</a></li>
+						<li><a href="#n">운영정책</a></li>
+						<li><a href="#n">청소년 보호 정책</a></li>
+					</ul>
+				</div>
+				<!--<div class="footer-info">회사명 : 캔디Cast -->
+				<!--	<span class="margin-divider"></span>사업자등록번호 : 122-86-37626 -->
+				<!--	<span class="margin-divider"></span>대표이사 : 조은정-->
+				<!--	<span class="margin-divider"></span>주소 : 서울특별시 강남구 신사동 561호-->
+				<!--	<br>-->
+				<!--	<span class="footer-copy">COPYRIGHT © 캔디Cast. ALL RIGHTS RESERVED. ( v 11.01 )</span>-->
+				<!--</div>-->
+
+			</div>
+
+
+
+
+
+</div>
+
+	<div id="main-popup" style="display:none;">
+		<div class="main-popup-box">
+			<div class="mPop swiper mySwiper">
+				<div class="swiper-wrapper">
+					<div class="swiper-slide"><a href="#n"><img src="/ftv/images/d88a8948b5c32e04.png" alt=""></a></div>
+					<div class="swiper-slide"><a href="#n"><img src="/ftv/images/d88a8948b5c32e04.png" alt=""></a></div>
+					<div class="swiper-slide"><a href="#n"><img src="/ftv/images/d88a8948b5c32e04.png" alt=""></a></div>
+					<div class="swiper-slide"><a href="#n"><img src="/ftv/images/d88a8948b5c32e04.png" alt=""></a></div>
+					<div class="swiper-slide"><a href="#n"><img src="/ftv/images/d88a8948b5c32e04.png" alt=""></a></div>
+					<div class="swiper-slide"><a href="#n"><img src="/ftv/images/d88a8948b5c32e04.png" alt=""></a></div>
+				</div>
+				<div class="swiper-button-prev"></div>
+				<div class="swiper-button-next"></div>
+				<div class="swiper-pagination"></div>
+			</div>
+			<div class="btn-group">
+				<button class="btn-today">7일 동안 보지 않기</button>
+				<button class="btn-close">닫기</button>
+			</div>
+		</div>
+	</div>
+<script>
+
+$(window).on("load", function(){
+	//$("body").addClass("hide");
+});
+</script>
+
+
+<div id="myModal" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="closeModal()">&times;</span>
+        <div class="modal-header">알림</div>
+        <div class="modal-body">이것은 커스텀 알림 창입니다!</div>
+        <div class="modal-footer">
+            <button class="modal-button" onclick="closeModal()">닫기</button>
+        </div>
+    </div>
+<input type="hidden" id="closeurl">
+</div>
+
+
+<div class="export-popup" id="export-container"></div>
+<script>
+function upexport() {
+    $(".h-select > a").removeClass("on");
+    $(".h-select > div").hide();
+    var container = $("#export-container");
+    
+    // 清空容器并显示
+    container.empty().css({display: "flex"});
+    
+    $.ajax({
+        url: '/export_handler.php', // 后端处理脚本
+        method: 'GET',
+        success: function(data) {
+            container.html(data); // 将后端返回的内容插入容器
+        },
+        error: function() {
+            container.html('<p>加载失败，请稍后重试。</p>');
+        }
+    });
+}
+
+function closeExport() {
+    $("#export-container").css({display: "none"});
+}
+</script>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,80 @@
+name: Test and deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: python -m pip install -r requirements-dev.txt
+      - run: python -m py_compile standalone_pulseutv_server.py verify_profile_flow.py
+      - run: node --check candycast_support_assets/candycast-profile.js
+      - name: Run profile integration test
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .test-runtime
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from standalone_pulseutv_server import hash_password
+          salt, digest = hash_password("CiAdmin!2345")
+          Path(".test-runtime/candycast_secrets.json").write_text(
+              json.dumps({
+                  "admin_password_salt": salt.hex(),
+                  "admin_password_hash": digest.hex(),
+              }),
+              encoding="utf-8",
+          )
+          PY
+          python standalone_pulseutv_server.py \
+            --source site \
+            --site-dir site \
+            --db-path .test-runtime/candycast.sqlite3 \
+            --workdir .test-runtime \
+            --host 127.0.0.1 \
+            --port 8770 \
+            --no-prepare >.test-runtime/server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for _ in {1..30}; do
+            curl -fsS http://127.0.0.1:8770/ >/dev/null && break
+            sleep 1
+          done
+          python verify_profile_flow.py \
+            --base-url http://127.0.0.1:8770 \
+            --db .test-runtime/candycast.sqlite3
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Configure SSH
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          install -m 0700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy
+          chmod 0600 ~/.ssh/deploy
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+      - name: Deploy
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: ssh -i ~/.ssh/deploy "$DEPLOY_USER@$DEPLOY_HOST" /opt/candycast/app/deploy/deploy.sh

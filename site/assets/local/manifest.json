@@ -1,0 +1,13 @@
+{
+  "name": "CandyCast",
+  "short_name": "CandyCast",
+  "start_url": "/",
+  "display": "standalone",
+  "icons": [
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}

@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta content="no" http-equiv="imagetoolbar"/>
+<meta content="IE=Edge" http-equiv="X-UA-Compatible"/>
+<title>충전 | 캔디Cast</title>
+<link href="./css/admin.css" rel="stylesheet"/>
+<link href="../js/font-awesome/css/font-awesome.min.css" rel="stylesheet"/>
+<!--[if lte IE 8]>
+<script src="/assets/local/noop.js"></script>
+<![endif]-->
+<script>
+// 자바스크립트에서 사용하는 전역변수 선언
+var g5_url       = ".";
+var g5_bbs_url   = "./bbs";
+var g5_is_member = "1";
+var g5_is_admin  = "super";
+var g5_is_mobile = "";
+var g5_bo_table  = "";
+var g5_sca       = "";
+var g5_editor    = "";
+var g5_cookie_domain = "";
+var g5_shop_url = "./shop";
+var g5_admin_url = "/adm";
+</script>
+<script src="../js/jquery-1.12.4.min.js"></script>
+<script src="../js/jquery-migrate-1.4.1.min.js"></script>
+<script src="../js/jquery.menu.js"></script>
+<script src="../js/common.js"></script>
+<script src="../js/wrest.js"></script>
+<script src="../js/placeholders.min.js"></script>
+</head>
+<body>
+<div id="hd_login_msg">최고관리자 상담원님 로그인 중 <a href="/offline.html">로그아웃</a></div>
+<script>
+    var g5_admin_csrf_token_key = "";
+    var tempX = 0;
+    var tempY = 0;
+
+    function imageview(id, w, h) {
+
+        menu(id);
+
+        var el_id = document.getElementById(id);
+
+        //submenu = eval(name+".style");
+        submenu = el_id.style;
+        submenu.left = tempX - (w + 11);
+        submenu.top = tempY - (h / 2);
+
+        selectBoxVisible();
+
+        if (el_id.style.display != 'none')
+            selectBoxHidden(id);
+    }
+</script>
+<div id="to_content"><a href="#container">본문 바로가기</a></div>
+<header id="hd">
+<h1>Administrator</h1>
+<div id="hd_top">
+<button class="btn_gnb_close" id="btn_gnb" type="button">메뉴</button>
+<div id="logo"><a href="./index.html"><img alt="Administrator" src="./img/logo.png"/></a></div>
+<div id="tnb">
+<ul>
+<li class="tnb_li"><a class="tnb_shop" href="/offline.html" target="_blank" title="쇼핑몰 바로가기">쇼핑몰 바로가기</a></li>
+<li class="tnb_li"><a class="tnb_community" href="../index.html" target="_blank" title="커뮤니티 바로가기">커뮤니티 바로가기</a></li>
+<li class="tnb_li"><a class="tnb_service" href="./service.php.html">부가서비스</a></li>
+<li class="tnb_li"><button class="tnb_mb_btn" type="button">관리자<span class="./img/btn_gnb.png">메뉴열기</span></button>
+<ul class="tnb_mb_area">
+<li><a href="/offline.html">관리자정보</a></li>
+<li id="tnb_logout"><a href="/offline.html">로그아웃</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</div>
+<nav class="gnb_large" id="gnb">
+<h2>관리자 주메뉴</h2>
+<ul class="gnb_ul">
+<li class="gnb_li on">
+<button class="btn_op menu-100 menu-order-1" title="환경설정" type="button">환경설정</button>
+<div class="gnb_oparea_wr">
+<div class="gnb_oparea">
+<h3>환경설정</h3>
+<ul><li data-menu="100100"><a class="gnb_2da" href="./config_form.php.html">기본환경설정</a></li><li data-menu="100200"><a class="gnb_2da" href="./member_list.php.html">회원관리</a></li><li data-menu="100280"><a class="gnb_2da gnb_grp_style gnb_grp_div" href="/offline.html">파트너추가</a></li><li data-menu="100290"><a class="gnb_2da gnb_grp_style gnb_grp_div" href="./point_list.php.html">캔디관리</a></li><li data-menu="100300"><a class="gnb_2da" href="./regist_code.php.html">추천인코드</a></li><li data-menu="100310"><a class="gnb_2da" href="./live_list.php.html">라이브</a></li><li data-menu="100320"><a class="gnb_2da" href="./livement.php.html">라이브멘트</a></li><li data-menu="100330"><a class="gnb_2da" href="./notice_list.php.html">공지사항</a></li><li data-menu="100340"><a class="gnb_2da" href="./faqmasterlist.php.html">자주하는질문</a></li><li data-menu="100350"><a class="gnb_2da" href="./chat_room.php.html">채팅방관리</a></li><li data-menu="100370"><a class="gnb_2da on" href="./import_list.php.html">구매신청관리</a></li><li data-menu="100380"><a class="gnb_2da" href="./export_list.php.html">환전신청관리</a></li><li data-menu="100390"><a class="gnb_2da" href="./chat_list.php.html">채팅리스트</a></li><li data-menu="100400"><a class="gnb_2da" href="./shopsetting.php.html">샵설정</a></li><li data-menu="100410"><a class="gnb_2da" href="./toplist.php.html">탑랭킹관리</a></li><li data-menu="100800"><a class="gnb_2da gnb_grp_style gnb_grp_div" href="/offline.html">세션파일 일괄삭제</a></li><li data-menu="100900"><a class="gnb_2da gnb_grp_style gnb_grp_div" href="/offline.html">캐시파일 일괄삭제</a></li><li data-menu="100910"><a class="gnb_2da gnb_grp_style gnb_grp_div" href="/offline.html">캡챠파일 일괄삭제</a></li><li data-menu="100920"><a class="gnb_2da gnb_grp_style gnb_grp_div" href="/offline.html">썸네일파일 일괄삭제</a></li></ul> </div>
+</div>
+</li>
+</ul>
+</nav>
+</header>
+<script>
+    jQuery(function($) {
+
+        var menu_cookie_key = 'g5_admin_btn_gnb';
+
+        $(".tnb_mb_btn").click(function() {
+            $(".tnb_mb_area").toggle();
+        });
+
+        $("#btn_gnb").click(function() {
+
+            var $this = $(this);
+
+            try {
+                if (!$this.hasClass("btn_gnb_open")) {
+                    set_cookie(menu_cookie_key, 1, 60 * 60 * 24 * 365);
+                } else {
+                    delete_cookie(menu_cookie_key);
+                }
+            } catch (err) {}
+
+            $("#container").toggleClass("container-small");
+            $("#gnb").toggleClass("gnb_small");
+            $this.toggleClass("btn_gnb_open");
+
+        });
+
+        $(".gnb_ul li .btn_op").click(function() {
+            $(this).parent().addClass("on").siblings().removeClass("on");
+        });
+
+    });
+</script>
+<div id="wrapper">
+<div class="" id="container">
+<h1 id="container_title">충전</h1>
+<div class="container_wr">
+<div class="local_ov01 local_ov">
+<a class="ov_listall" href="./import_list.php.html">전체목록</a> <span class="btn_ov01"><span class="ov_txt">충전갯수</span><span class="ov_num"> 121개</span></span>
+</div>
+<!--form name="fsearch" id="fsearch" class="local_sch01 local_sch" method="get">
+
+<label for="sfl" class="sound_only">검색대상</label>
+<select name="sfl" id="sfl">
+    <option value="bo_table">TABLE</option>
+    <option value="bo_subject">제목</option>
+    <option value="a.gr_id">그룹ID</option>
+</select>
+<label for="stx" class="sound_only">검색어<strong class="sound_only"> 필수</strong></label>
+<input type="text" name="stx" value="" id="stx" required class="required frm_input">
+<input type="submit" value="검색" class="btn_submit">
+
+</form-->
+<form action="./import_list.php.html" id="fboardlist" method="post" name="fboardlist" onsubmit="return fboardlist_submit(this);">
+<input name="sst" type="hidden" value="a.no"/>
+<input name="sod" type="hidden" value="desc"/>
+<input name="sfl" type="hidden" value=""/>
+<input name="stx" type="hidden" value=""/>
+<input name="page" type="hidden" value="1"/>
+<input name="token" type="hidden" value=""/>
+<input id="maxno" type="hidden" value=""/>
+<div class="tbl_head01 tbl_wrap">
+<table>
+<caption>충전 목록</caption>
+<thead>
+<tr>
+<th scope="col">
+<label class="sound_only" for="chkall">현재 페이지 전체</label>
+<input id="chkall" name="chkall" onclick="check_all(this.form)" type="checkbox" value="1"/>
+</th>
+<th scope="col">아이디</th>
+<th scope="col">금액</th>
+<th scope="col">개수</th>
+<th scope="col">입금자명</th>
+<th scope="col">연락처</th>
+<th scope="col">등급</th>
+<th scope="col">상태</th>
+<th scope="col">시간</th>
+<th scope="col">설정</th>
+</tr>
+</thead>
+<tbody id="bettinglist"></tbody>
+</table>
+</div>
+<div class="btn_fixed_top">
+<input class="btn_02 btn" name="act_button" onclick="document.pressed=this.value" type="submit" value="선택삭제"/>
+</div>
+</form>
+<!--button onclick="voicePaly()">启动</button-->
+<!--button onclick="voiceClose()">停止</button-->
+<nav class="pg_wrap"><span class="pg"><span class="sound_only">열린</span><strong class="pg_current">1</strong><span class="sound_only">페이지</span>
+<a class="pg_page" href="./import_list.php.html">2<span class="sound_only">페이지</span></a>
+<a class="pg_page" href="./import_list.php.html">3<span class="sound_only">페이지</span></a>
+<a class="pg_page" href="./import_list.php.html">4<span class="sound_only">페이지</span></a>
+<a class="pg_page" href="./import_list.php.html">5<span class="sound_only">페이지</span></a>
+<a class="pg_page" href="./import_list.php.html">6<span class="sound_only">페이지</span></a>
+<a class="pg_page" href="./import_list.php.html">7<span class="sound_only">페이지</span></a>
+<a class="pg_page" href="./import_list.php.html">8<span class="sound_only">페이지</span></a>
+<a class="pg_page" href="./import_list.php.html">9<span class="sound_only">페이지</span></a>
+<a class="pg_page pg_end" href="./import_list.php.html">맨끝</a>
+</span></nav>
+<script>
+
+
+
+function goballoon(no,id,price,lev,status,content){
+	
+if(status=="y"){
+ var ment="충전확인";
+
+}else{
+	 var ment="충전거부";
+}
+			if(confirm(ment+"하시겠습니까?")){
+
+			$.ajax({
+				  type: "post",
+				  url: "./import_update.php",
+				  data: {no:no,id:id,price:price,lev:lev,status:status,content:content}, 
+				  dataType: "text",
+				  success: function(msg){
+
+					console.log(msg);
+					if(msg==1){
+						location.reload();  //刷新页面
+					}else{
+						alert(msg);
+						//location.reload();
+					}
+				  },
+				  error:function(msg){
+				   console.log(msg);
+				  }
+			  });
+		}
+
+}
+
+function fboardlist_submit(f)
+{
+    if (!is_checked("chk[]")) {
+        alert(document.pressed+" 하실 항목을 하나 이상 선택하세요.");
+        return false;
+    }
+
+    if(document.pressed == "선택삭제") {
+        if(!confirm("선택한 자료를 정말 삭제하시겠습니까?")) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+$(function(){
+    $(".board_copy").click(function(){
+        window.open(this.href, "win_board_copy", "left=100,top=100,width=550,height=450");
+        return false;
+    });
+});
+
+
+
+	function nochange(no){
+
+
+		var val=$("#phoneno"+no).val();
+
+if(val==null||val==undefined||val==""){
+	alert('수정할값을입력핳세요.');
+	return false;
+}
+ if(confirm("계좌번호를 수정하시겠습니까?"))
+ {
+ 
+ }else{
+	
+	return false;
+ }
+			$.ajax({
+				  type: "post",
+				  url: "./exportno_change.php",
+				  data: {no:no,val:val}, 
+				  dataType: "text",
+				  success: function(msg){
+					  if(msg==1){
+						  alert('수정되었습니다.');
+						 $("#phoneno"+no).val(val);
+					  }
+				  },
+				  error:function(msg){
+				   console.log(msg);
+				  }
+			  });
+	}
+
+</script>
+<noscript>
+<p>
+        귀하께서 사용하시는 브라우저는 현재 <strong>자바스크립트를 사용하지 않음</strong>으로 설정되어 있습니다.<br/>
+<strong>자바스크립트를 사용하지 않음</strong>으로 설정하신 경우는 수정이나 삭제시 별도의 경고창이 나오지 않으므로 이점 주의하시기 바랍니다.
+    </p>
+</noscript>
+</div>
+<footer id="ft">
+<p>
+        Copyright © detached clone. All rights reserved. Version 5.6.9<br/>
+<button class="scroll_top" type="button"><span class="top_img"></span><span class="top_txt">TOP</span></button>
+</p>
+</footer>
+</div>
+</div>
+<script>
+    $(".scroll_top").click(function() {
+        $("body,html").animate({
+            scrollTop: 0
+        }, 400);
+    })
+</script>
+<!-- <p>실행시간 : 0.0065779685974121 -->
+<script src="./admin.js"></script>
+<script src="../js/jquery.anchorScroll.js"></script>
+<script>
+    $(function() {
+
+        var admin_head_height = $("#hd_top").height() + $("#container_title").height() + 5;
+
+        $("a[href^='#']").anchorScroll({
+            scrollSpeed: 0, // scroll speed
+            offsetTop: admin_head_height, // offset for fixed top bars (defaults to 0)
+            onScroll: function() {
+                // callback on scroll start
+            },
+            scrollEnd: function() {
+                // callback on scroll end
+            }
+        });
+
+        var hide_menu = false;
+        var mouse_event = false;
+        var oldX = oldY = 0;
+
+        $(document).mousemove(function(e) {
+            if (oldX == 0) {
+                oldX = e.pageX;
+                oldY = e.pageY;
+            }
+
+            if (oldX != e.pageX || oldY != e.pageY) {
+                mouse_event = true;
+            }
+        });
+
+        // 주메뉴
+        var $gnb = $(".gnb_1dli > a");
+        $gnb.mouseover(function() {
+            if (mouse_event) {
+                $(".gnb_1dli").removeClass("gnb_1dli_over gnb_1dli_over2 gnb_1dli_on");
+                $(this).parent().addClass("gnb_1dli_over gnb_1dli_on");
+                menu_rearrange($(this).parent());
+                hide_menu = false;
+            }
+        });
+
+        $gnb.mouseout(function() {
+            hide_menu = true;
+        });
+
+        $(".gnb_2dli").mouseover(function() {
+            hide_menu = false;
+        });
+
+        $(".gnb_2dli").mouseout(function() {
+            hide_menu = true;
+        });
+
+        $gnb.focusin(function() {
+            $(".gnb_1dli").removeClass("gnb_1dli_over gnb_1dli_over2 gnb_1dli_on");
+            $(this).parent().addClass("gnb_1dli_over gnb_1dli_on");
+            menu_rearrange($(this).parent());
+            hide_menu = false;
+        });
+
+        $gnb.focusout(function() {
+            hide_menu = true;
+        });
+
+        $(".gnb_2da").focusin(function() {
+            $(".gnb_1dli").removeClass("gnb_1dli_over gnb_1dli_over2 gnb_1dli_on");
+            var $gnb_li = $(this).closest(".gnb_1dli").addClass("gnb_1dli_over gnb_1dli_on");
+            menu_rearrange($(this).closest(".gnb_1dli"));
+            hide_menu = false;
+        });
+
+        $(".gnb_2da").focusout(function() {
+            hide_menu = true;
+        });
+
+        $('#gnb_1dul>li').bind('mouseleave', function() {
+            submenu_hide();
+        });
+
+        $(document).bind('click focusin', function() {
+            if (hide_menu) {
+                submenu_hide();
+            }
+        });
+
+        // 폰트 리사이즈 쿠키있으면 실행
+        var font_resize_act = get_cookie("ck_font_resize_act");
+        if (font_resize_act != "") {
+            font_resize("container", font_resize_act);
+        }
+    });
+
+    function submenu_hide() {
+        $(".gnb_1dli").removeClass("gnb_1dli_over gnb_1dli_over2 gnb_1dli_on");
+    }
+
+    function menu_rearrange(el) {
+        var width = $("#gnb_1dul").width();
+        var left = w1 = w2 = 0;
+        var idx = $(".gnb_1dli").index(el);
+
+        for (i = 0; i <= idx; i++) {
+            w1 = $(".gnb_1dli:eq(" + i + ")").outerWidth();
+            w2 = $(".gnb_2dli > a:eq(" + i + ")").outerWidth(true);
+
+            if ((left + w2) > width) {
+                el.removeClass("gnb_1dli_over").addClass("gnb_1dli_over2");
+            }
+
+            left += w1;
+        }
+    }
+</script>
+<!-- <div style='float:left; text-align:center;'>RUN TIME : 0.0066311359405518<br></div> -->
+</body>
+</html>

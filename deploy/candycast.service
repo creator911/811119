@@ -1,0 +1,24 @@
+[Unit]
+Description=CandyCast web application
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=candycast
+Group=www-data
+WorkingDirectory=/opt/candycast/app
+EnvironmentFile=/etc/candycast/candycast.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/candycast/venv/bin/python /opt/candycast/app/standalone_pulseutv_server.py --source /opt/candycast/app/site --site-dir /opt/candycast/app/site --db-path /var/lib/candycast/candycast.sqlite3 --workdir /var/lib/candycast --host 127.0.0.1 --port 8770 --no-prepare
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=20
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+ReadWritePaths=/var/lib/candycast /opt/candycast/app/site/assets/local
+
+[Install]
+WantedBy=multi-user.target
