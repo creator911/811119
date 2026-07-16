@@ -2406,6 +2406,8 @@ class StandaloneHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
+        if getattr(self, "_head_only", False):
+            return
         try:
             self.wfile.write(data)
         except (BrokenPipeError, ConnectionAbortedError, ConnectionResetError):
@@ -3746,6 +3748,13 @@ class StandaloneHandler(BaseHTTPRequestHandler):
             ),
             cookies=flash_response_cookies,
         )
+
+    def do_HEAD(self) -> None:  # noqa: N802
+        self._head_only = True
+        try:
+            self.do_GET()
+        finally:
+            self._head_only = False
 
     def do_POST(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
