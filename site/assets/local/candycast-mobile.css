@@ -1242,7 +1242,11 @@ body.cc-page-shop .cc-shop-product .cc-shop-candy::after {
 
   body.cc-page-chat.cc-mobile-immersive {
     min-height: var(--cc-viewport-height, 100dvh);
-    padding-bottom: calc(var(--cc-mobile-nav-height) + var(--cc-mobile-safe-bottom));
+    padding-bottom: var(--cc-mobile-safe-bottom);
+  }
+
+  body.cc-page-chat.cc-mobile-immersive .cc-mobile-nav {
+    display: none !important;
   }
 
   body.cc-page-chat.cc-mobile-immersive > header {
@@ -1268,7 +1272,7 @@ body.cc-page-shop .cc-shop-product .cc-shop-candy::after {
 
   body.cc-page-chat.cc-mobile-immersive > main {
     width: 100%;
-    height: calc(var(--cc-viewport-height, 100dvh) - 58px - var(--cc-mobile-nav-height) - var(--cc-mobile-safe-bottom));
+    height: calc(var(--cc-viewport-height, 100dvh) - 58px - var(--cc-mobile-safe-bottom));
     min-height: 320px;
   }
 
