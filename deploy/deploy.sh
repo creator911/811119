@@ -4,6 +4,14 @@ set -euo pipefail
 APP_DIR="${CANDYCAST_APP_DIR:-/opt/candycast/app}"
 VENV_DIR="${CANDYCAST_VENV_DIR:-/opt/candycast/venv}"
 DB_PATH="${CANDYCAST_DB_PATH:-/var/lib/candycast/candycast.sqlite3}"
+ENV_FILE="${CANDYCAST_ENV_FILE:-/etc/candycast/candycast.env}"
+
+if [[ -r "${ENV_FILE}" ]]; then
+  set -a
+  # shellcheck disable=SC1090
+  source "${ENV_FILE}"
+  set +a
+fi
 
 cd "${APP_DIR}"
 git fetch origin main
