@@ -32,6 +32,10 @@ body.cc-page-shop .cc-shop-product .cc-shop-candy::after {
   content: " + ";
 }
 
+body.cc-page-shop .cc-shop-level-mobile {
+  display: none;
+}
+
 @media (min-width: 769px) {
   body.cc-page-shop .cc-shop-symbol {
     transform: none;
@@ -840,8 +844,16 @@ body.cc-page-shop .cc-shop-product .cc-shop-candy::after {
 
   body.cc-page-shop .cc-shop-product .cc-shop-level {
     margin-top: 0;
-    color: red;
+    color: #111 !important;
     line-height: 1.25;
+  }
+
+  body.cc-page-shop .cc-shop-level-desktop {
+    display: none;
+  }
+
+  body.cc-page-shop .cc-shop-level-mobile {
+    display: inline;
   }
 
   body.cc-page-shop .cc-shop-price {

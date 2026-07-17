@@ -1671,7 +1671,17 @@ def render_dynamic_page(
             candy_label.string = candy_text
             level_label = soup.new_tag("b")
             level_label["class"] = "cc-shop-level"
-            level_label.string = level_text
+            if level_text == "플래티넘레벨":
+                desktop_level = soup.new_tag("span")
+                desktop_level["class"] = "cc-shop-level-desktop"
+                desktop_level.string = "플래티넘"
+                mobile_level = soup.new_tag("span")
+                mobile_level["class"] = "cc-shop-level-mobile"
+                mobile_level.string = level_text
+                level_label.append(desktop_level)
+                level_label.append(mobile_level)
+            else:
+                level_label.string = level_text
             product_paragraph.append(candy_label)
             product_paragraph.append(level_label)
             changed = True
@@ -1928,7 +1938,7 @@ def render_dynamic_page(
             "link",
             id="candycast-mobile-style",
             rel="stylesheet",
-            href="/assets/local/candycast-mobile.css?v=20260717a5a1f6e",
+            href="/assets/local/candycast-mobile.css?v=20260717-shop1",
         )
         soup.head.append(mobile_style)
         changed = True
@@ -5111,7 +5121,7 @@ class StandaloneHandler(BaseHTTPRequestHandler):
             "</head>",
             '<link rel="stylesheet" href="/assets/local/candycast-support.css?v=20260717-chat3">'
             '<link rel="stylesheet" href="/assets/local/candycast-member-chat.css?v=20260717-chat3">'
-            '<link rel="stylesheet" href="/assets/local/candycast-mobile.css?v=20260717a5a1f6e">'
+            '<link rel="stylesheet" href="/assets/local/candycast-mobile.css?v=20260717-shop1">'
             '<link rel="stylesheet" href="/assets/local/candycast-restrictions.css"></head>',
         ).replace(
             "</body>",
