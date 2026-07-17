@@ -1896,6 +1896,9 @@ def render_dynamic_page(
     for chat_list in soup.select(".maindddd"):
         changed = shuffle_direct_children(chat_list, "div") or changed
     if page_path.name.startswith("chatlist"):
+        for balance_row in soup.select(".maindddd .jejhdh"):
+            if balance_row.get_text(" ", strip=True).startswith("보유캔디"):
+                balance_row.decompose()
         for entry in soup.select(".woiej[onclick]"):
             match = re.search(r"openWindow\([^,]*,\s*['\"]([^'\"]+)['\"]\)", entry.get("onclick", ""))
             if match:
