@@ -2012,7 +2012,7 @@ def render_dynamic_page(
         mobile_script = soup.new_tag(
             "script",
             id="candycast-mobile-script",
-            src="/assets/local/candycast-mobile.js",
+            src="/assets/local/candycast-mobile.js?v=20260717-audit1",
             defer=True,
         )
         soup.body.append(mobile_script)
@@ -4770,6 +4770,15 @@ class StandaloneHandler(BaseHTTPRequestHandler):
         tbody = soup.select_one("#bettinglist")
         if tbody is None:
             return str(soup).encode("utf-8")
+        tbody.clear()
+
+        if kind == "import":
+            title = soup.select_one("title")
+            if title is not None:
+                title.string = "구매 신청 | 캔디Cast"
+            container_title = soup.select_one("#container_title")
+            if container_title is not None:
+                container_title.string = "구매 신청"
 
         with sqlite3.connect(self.db_path) as db:
             rows = db.execute(
@@ -4778,7 +4787,7 @@ class StandaloneHandler(BaseHTTPRequestHandler):
                 (kind,),
             ).fetchall()
 
-        for row in reversed(rows):
+        for row in rows:
             (
                 transaction_id,
                 member_id,
@@ -4845,15 +4854,29 @@ class StandaloneHandler(BaseHTTPRequestHandler):
                 </tr>"""
             new_row = BeautifulSoup(row_html, "html.parser").find("tr")
             if new_row is not None:
-                tbody.insert(0, new_row)
+                tbody.append(new_row)
+
+        if not rows:
+            empty_text = "환전 신청 내역이 없습니다." if kind == "export" else "구매 신청 내역이 없습니다."
+            empty_row = BeautifulSoup(
+                f'<tr><td colspan="10" style="padding:32px;text-align:center;color:#777">{empty_text}</td></tr>',
+                "html.parser",
+            ).find("tr")
+            if empty_row is not None:
+                tbody.append(empty_row)
 
         form = soup.select_one("#fboardlist")
         if form is not None:
             form["action"] = f"{ADMIN_PREFIX}/{'export_list.php' if kind == 'export' else 'import_list.php'}"
+        count_label = soup.select_one(".ov_txt")
+        if count_label is not None:
+            count_label.string = "환전건수" if kind == "export" else "구매건수"
         count_badge = soup.select_one(".ov_num")
-        if count_badge is not None and rows:
-            archived_count = len([row for row in tbody.find_all("tr", recursive=False) if "candycast-local-row" not in row.get("class", [])])
-            count_badge.string = f" {archived_count + len(rows)}개"
+        if count_badge is not None:
+            count_badge.string = f" {len(rows)}개"
+        pagination = soup.select_one(".pg_wrap")
+        if pagination is not None:
+            pagination.decompose()
         return str(soup).encode("utf-8")
 
     def render_my2(
@@ -5134,7 +5157,7 @@ class StandaloneHandler(BaseHTTPRequestHandler):
             + '<script src="/assets/local/candycast-image-utils.js" defer></script>'
             + '<script src="/assets/local/candycast-support.js?v=20260717-chat3" defer></script>'
             + '<script src="/assets/local/candycast-member-chat.js?v=20260717-chat3" defer></script>'
-            + '<script src="/assets/local/candycast-mobile.js" defer></script>'
+            + '<script src="/assets/local/candycast-mobile.js?v=20260717-audit1" defer></script>'
             + '<script src="/assets/local/candycast-restrictions.js" defer></script></body>',
         )
         return page.encode("utf-8")

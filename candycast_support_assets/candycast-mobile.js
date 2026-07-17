@@ -76,7 +76,7 @@
     if (!list || document.querySelector(".cc-mobile-chat-search")) return;
 
     var cards = Array.prototype.filter.call(list.children, function (node) {
-      return node.nodeType === 1;
+      return node.nodeType === 1 && node.classList.contains("mvdfk");
     });
     makeChatCardsInteractive(cards);
 
