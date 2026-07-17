@@ -11,6 +11,132 @@
   var pollTimer = 0;
   var loading = false;
 
+  function initializeDetailComposer() {
+    var form = document.querySelector(".cc-chat-composer[data-influencer-id]");
+    if (!form) return;
+    var textarea = form.querySelector("textarea[name=message]");
+    var fileInput = form.querySelector("#cc-member-chat-file");
+    var attachButton = form.querySelector(".cc-chat-attach");
+    var sendButton = form.querySelector(".cc-chat-send");
+    var preview = form.querySelector(".cc-chat-attachment-preview");
+    var pendingAttachment = null;
+    var attachmentBusy = false;
+    var attachmentVersion = 0;
+    var sending = false;
+
+    function setBusy() {
+      if (attachButton) attachButton.disabled = attachmentBusy || sending;
+      if (sendButton) sendButton.disabled = attachmentBusy || sending;
+    }
+
+    function clearAttachment() {
+      attachmentVersion += 1;
+      pendingAttachment = null;
+      attachmentBusy = false;
+      if (fileInput) fileInput.value = "";
+      if (preview) {
+        preview.hidden = true;
+        preview.querySelector("img").removeAttribute("src");
+        preview.querySelector("span").textContent = "";
+      }
+      setBusy();
+    }
+
+    if (attachButton && fileInput) {
+      attachButton.addEventListener("click", function () { fileInput.click(); });
+    }
+    form.addEventListener("click", function (event) {
+      if (event.target.closest('[data-cc-chat-action="remove-attachment"]')) {
+        clearAttachment();
+      }
+    });
+
+    if (fileInput) {
+      fileInput.addEventListener("change", function () {
+        var file = fileInput.files && fileInput.files[0];
+        if (!file) return clearAttachment();
+        if (!window.CandyCastImage) {
+          window.alert("이미지 압축기를 불러오지 못했습니다. 페이지를 새로고침해 주세요.");
+          return clearAttachment();
+        }
+        var version = attachmentVersion + 1;
+        attachmentVersion = version;
+        attachmentBusy = true;
+        setBusy();
+        preview.hidden = false;
+        preview.querySelector("img").removeAttribute("src");
+        preview.querySelector("span").textContent = "사진 자동 압축 중...";
+        window.CandyCastImage.compress(file).then(function (result) {
+          if (version !== attachmentVersion) return;
+          pendingAttachment = { name: result.name, type: result.type, data: result.data };
+          preview.querySelector("img").src = pendingAttachment.data;
+          preview.querySelector("span").textContent = result.label;
+          preview.hidden = false;
+        }).catch(function (error) {
+          if (version !== attachmentVersion) return;
+          window.alert(error.message);
+          clearAttachment();
+        }).finally(function () {
+          if (version === attachmentVersion) {
+            attachmentBusy = false;
+            setBusy();
+          }
+        });
+      });
+    }
+
+    if (textarea) {
+      textarea.addEventListener("input", function () {
+        textarea.style.height = "48px";
+        textarea.style.height = Math.min(112, textarea.scrollHeight) + "px";
+      });
+      textarea.addEventListener("keydown", function (event) {
+        if (
+          event.key === "Enter" && !event.shiftKey &&
+          !event.isComposing && event.keyCode !== 229
+        ) {
+          event.preventDefault();
+          if (form.requestSubmit) form.requestSubmit();
+        }
+      });
+    }
+
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      if (sending) return;
+      if (attachmentBusy) {
+        window.alert("사진 압축이 끝날 때까지 잠시 기다려 주세요.");
+        return;
+      }
+      var message = (textarea.value || "").trim();
+      if (!message && !pendingAttachment) return;
+      sending = true;
+      setBusy();
+      fetch("/api/member/chat/messages", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({
+          influencerId: form.dataset.influencerId,
+          message: message,
+          attachment: pendingAttachment
+        })
+      }).then(async function (response) {
+        var payload = {};
+        try { payload = await response.json(); } catch (_error) { payload = {}; }
+        if (!response.ok) throw new Error(payload.error || "메시지를 전송하지 못했습니다.");
+        if (textarea) textarea.value = "";
+        clearAttachment();
+        window.location.reload();
+      }).catch(function (error) {
+        window.alert(error.message);
+      }).finally(function () {
+        sending = false;
+        setBusy();
+      });
+    });
+  }
+
   function closeSupport() {
     var support = document.getElementById("cc-support-root");
     if (!support || support.dataset.open !== "true") return;
@@ -160,6 +286,8 @@
 
   var messages = document.querySelector(".cc-chat-messages");
   if (messages) messages.scrollTop = messages.scrollHeight;
+
+  initializeDetailComposer();
 
   loadRooms();
   pollTimer = window.setInterval(loadRooms, 10000);

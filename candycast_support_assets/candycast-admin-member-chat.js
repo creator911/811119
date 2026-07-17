@@ -9,6 +9,10 @@
     memberId: "",
     influencerId: "",
     pollTimer: 0,
+    attachment: null,
+    attachmentBusy: false,
+    attachmentVersion: 0,
+    sending: false,
   };
   const POLL_INTERVAL_MS = 5000;
   const POLL_JITTER_MS = 500;
@@ -164,10 +168,20 @@
           ? payload.influencer.name || payload.influencer.id
           : payload.member.nickname || payload.member.id;
         const text = document.createElement("p");
-        text.textContent = item.message;
+        text.textContent = item.message || "";
+        if (!item.message) text.hidden = true;
+        if (item.attachment?.data) {
+          const attachment = document.createElement("img");
+          attachment.className = "cc-chat-message-image";
+          attachment.src = item.attachment.data;
+          attachment.alt = item.attachment.name || "첨부 이미지";
+          bubble.append(sender, text, attachment);
+        } else {
+          bubble.append(sender, text);
+        }
         const time = document.createElement("time");
         time.textContent = item.createdAt;
-        bubble.append(sender, text, time);
+        bubble.append(time);
         article.append(bubble);
         messages.append(article);
       }
@@ -179,8 +193,32 @@
     detail.textContent = `${payload.member.id} / ${payload.member.phone || "전화번호 없음"}`;
     meta.append(title, detail);
     composer.elements.message.disabled = false;
-    composer.querySelector("button").disabled = false;
+    composer.querySelector("button[type=submit]").disabled = false;
+    composer.querySelector(".cc-chat-admin-attach").disabled = false;
     if (!preservePosition || oldBottomDistance < 80) messages.scrollTop = messages.scrollHeight;
+  }
+
+  function setComposerBusy() {
+    const composer = $("#cc-chat-admin-composer");
+    if (!composer) return;
+    const disabled = state.attachmentBusy || state.sending || !state.memberId || !state.influencerId;
+    composer.querySelector("button[type=submit]").disabled = disabled;
+    composer.querySelector(".cc-chat-admin-attach").disabled = disabled;
+  }
+
+  function clearAttachment() {
+    state.attachmentVersion += 1;
+    state.attachment = null;
+    state.attachmentBusy = false;
+    const file = $("#cc-chat-admin-file");
+    const preview = $("#cc-chat-admin-attachment");
+    if (file) file.value = "";
+    if (preview) {
+      preview.hidden = true;
+      preview.querySelector("img").removeAttribute("src");
+      preview.querySelector("span").textContent = "";
+    }
+    setComposerBusy();
   }
 
   async function openConversation(memberId, influencerId, preservePosition = false) {
@@ -204,9 +242,15 @@
       showToast("회원과 보내는 BJ를 선택해주세요.", true);
       return;
     }
+    if (state.sending) return;
+    if (state.attachmentBusy) {
+      showToast("사진 압축이 끝날 때까지 잠시 기다려 주세요.", true);
+      return;
+    }
     const message = form.elements.message.value.trim();
-    if (!message) return;
-    button.disabled = true;
+    if (!message && !state.attachment) return;
+    state.sending = true;
+    setComposerBusy();
     try {
       await request("/api/admin/member-chat/messages", {
         method: "POST",
@@ -214,9 +258,11 @@
           memberId: state.memberId,
           influencerId: state.influencerId,
           message,
+          attachment: state.attachment,
         }),
       });
       form.reset();
+      clearAttachment();
       await Promise.all([
         openConversation(state.memberId, state.influencerId),
         loadRooms($("#cc-chat-room-search")?.value || ""),
@@ -224,7 +270,8 @@
     } catch (error) {
       showToast(error.message, true);
     } finally {
-      button.disabled = false;
+      state.sending = false;
+      setComposerBusy();
     }
   }
 
@@ -262,6 +309,52 @@
   $("#cc-chat-admin-composer")?.addEventListener("submit", (event) => {
     event.preventDefault();
     sendMessage(event.currentTarget, event.currentTarget.querySelector("button"));
+  });
+  $("#cc-chat-admin-composer textarea")?.addEventListener("keydown", (event) => {
+    if (
+      event.key === "Enter" && !event.shiftKey &&
+      !event.isComposing && event.keyCode !== 229
+    ) {
+      event.preventDefault();
+      event.currentTarget.form?.requestSubmit();
+    }
+  });
+  $("#cc-chat-admin-composer")?.addEventListener("click", (event) => {
+    const action = event.target.closest("[data-chat-action]")?.dataset.chatAction;
+    if (action === "attach") $("#cc-chat-admin-file")?.click();
+    if (action === "remove-attachment") clearAttachment();
+  });
+  $("#cc-chat-admin-file")?.addEventListener("change", (event) => {
+    const file = event.currentTarget.files?.[0];
+    if (!file) return clearAttachment();
+    if (!window.CandyCastImage) {
+      showToast("이미지 압축기를 불러오지 못했습니다. 페이지를 새로고침해 주세요.", true);
+      return clearAttachment();
+    }
+    const version = state.attachmentVersion + 1;
+    state.attachmentVersion = version;
+    state.attachmentBusy = true;
+    setComposerBusy();
+    const preview = $("#cc-chat-admin-attachment");
+    preview.hidden = false;
+    preview.querySelector("img").removeAttribute("src");
+    preview.querySelector("span").textContent = "사진 자동 압축 중...";
+    window.CandyCastImage.compress(file).then((result) => {
+      if (version !== state.attachmentVersion) return;
+      state.attachment = { name: result.name, type: result.type, data: result.data };
+      preview.querySelector("img").src = state.attachment.data;
+      preview.querySelector("span").textContent = result.label;
+      preview.hidden = false;
+    }).catch((error) => {
+      if (version !== state.attachmentVersion) return;
+      showToast(error.message, true);
+      clearAttachment();
+    }).finally(() => {
+      if (version === state.attachmentVersion) {
+        state.attachmentBusy = false;
+        setComposerBusy();
+      }
+    });
   });
   $("#cc-chat-refresh")?.addEventListener("click", async () => {
     try {

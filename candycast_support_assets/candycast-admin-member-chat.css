@@ -295,6 +295,16 @@
   overflow-wrap: anywhere;
 }
 
+.cc-chat-message-image {
+  display: block;
+  max-width: min(100%, 360px);
+  max-height: 360px;
+  margin-top: 7px;
+  border-radius: 5px;
+  background: #eef0f4;
+  object-fit: contain;
+}
+
 .cc-chat-message time {
   margin-top: 6px;
   color: #9097a2;
@@ -302,12 +312,67 @@
 }
 
 .cc-chat-admin-composer {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 88px;
-  gap: 10px;
   padding: 12px 14px;
   border-top: 1px solid #dfe3e9;
   background: #fff;
+}
+
+.cc-chat-admin-composer-row {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 88px;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.cc-chat-admin-attach {
+  min-height: 44px;
+  border: 1px solid #cdd2da;
+  border-radius: 3px;
+  background: #f5f7fa;
+  color: #4f5867;
+  font-size: 21px;
+  cursor: pointer;
+}
+
+.cc-chat-admin-attachment {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 9px;
+  padding: 7px 9px;
+  border: 1px solid #dfe3e9;
+  border-radius: 3px;
+  background: #f7f8fa;
+}
+
+.cc-chat-admin-attachment[hidden] {
+  display: none !important;
+}
+
+.cc-chat-admin-attachment img {
+  width: 44px;
+  height: 44px;
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+.cc-chat-admin-attachment span {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: #5c6573;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cc-chat-admin-attachment button {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  background: transparent;
+  font-size: 22px;
+  cursor: pointer;
 }
 
 .cc-chat-admin-composer textarea {

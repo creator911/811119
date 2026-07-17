@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import time
@@ -63,6 +64,11 @@ def assert_status(actual: int, expected: int, label: str) -> None:
 
 
 def main() -> int:
+    global BASE
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--base", default=BASE)
+    args = parser.parse_args()
+    BASE = args.base.rstrip("/")
     admin_password = os.environ.get("CANDYCAST_TEST_ADMIN_PASSWORD", "")
     if not admin_password:
         raise SystemExit("Set CANDYCAST_TEST_ADMIN_PASSWORD before running this verifier.")
@@ -204,8 +210,9 @@ def main() -> int:
     status, influencer_payload = api(admin, "GET", "/api/admin/influencers")
     assert_status(status, 200, "influencer list")
     influencers = influencer_payload.get("influencers", [])
-    assert influencers, "influencer list is empty"
+    assert len(influencers) >= 2, "at least two influencers are required"
     influencer = influencers[0]
+    second_influencer = influencers[1]
 
     gift_message = f"선물 검증 메시지 {suffix}"
     status, gift = api(
@@ -227,13 +234,23 @@ def main() -> int:
     assert any(room.get("id") == influencer["id"] and room.get("lastMessage") == gift_message for room in rooms.get("rooms", []))
 
     admin_message = f"관리자 BJ 대리 메시지 {suffix}"
-    status, _ = api(
+    status, admin_send = api(
         admin,
         "POST",
         "/api/admin/member-chat/messages",
         {"memberId": member_id, "influencerId": influencer["id"], "message": admin_message},
     )
     assert_status(status, 201, "admin influencer message")
+    assert admin_send.get("duplicate") is False
+    status, admin_duplicate = api(
+        admin,
+        "POST",
+        "/api/admin/member-chat/messages",
+        {"memberId": member_id, "influencerId": influencer["id"], "message": admin_message},
+    )
+    assert_status(status, 201, "admin duplicate influencer message")
+    assert admin_duplicate.get("duplicate") is True
+    assert admin_duplicate.get("id") == admin_send.get("id")
 
     status, _, _ = post_form(
         member,
@@ -242,6 +259,47 @@ def main() -> int:
     )
     assert_status(status, 200, "member reply")
 
+    shared_message = f"다중 BJ 방 분리 {suffix}"
+    status, first_send = api(
+        member,
+        "POST",
+        "/api/member/chat/messages",
+        {"influencerId": influencer["id"], "message": shared_message},
+    )
+    assert_status(status, 201, "member first deduplicated send")
+    assert first_send.get("duplicate") is False
+    status, duplicate_send = api(
+        member,
+        "POST",
+        "/api/member/chat/messages",
+        {"influencerId": influencer["id"], "message": shared_message},
+    )
+    assert_status(status, 201, "member duplicate send")
+    assert duplicate_send.get("duplicate") is True
+    assert duplicate_send.get("id") == first_send.get("id")
+
+    tiny_png = (
+        "data:image/png;base64,"
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZJ9sAAAAASUVORK5CYII="
+    )
+    status, second_send = api(
+        member,
+        "POST",
+        "/api/member/chat/messages",
+        {
+            "influencerId": second_influencer["id"],
+            "message": shared_message,
+            "attachment": {"name": "chat.png", "type": "image/png", "data": tiny_png},
+        },
+    )
+    assert_status(status, 201, "member second influencer image send")
+    assert second_send.get("duplicate") is False
+
+    status, rooms = api(member, "GET", "/api/member/chats")
+    assert_status(status, 200, "member multi-influencer room list")
+    room_ids = {room.get("id") for room in rooms.get("rooms", [])}
+    assert {influencer["id"], second_influencer["id"]}.issubset(room_ids)
+
     status, conversation = api(
         admin,
         "GET",
@@ -249,7 +307,30 @@ def main() -> int:
     )
     assert_status(status, 200, "admin conversation")
     texts = [message.get("message") for message in conversation.get("messages", [])]
-    assert gift_message in texts and admin_message in texts and f"회원 답장 {suffix}" in texts
+    assert gift_message in texts and f"회원 답장 {suffix}" in texts
+    assert texts.count(admin_message) == 1, texts
+    assert texts.count(shared_message) == 1, texts
+
+    status, second_conversation = api(
+        admin,
+        "GET",
+        f"/api/admin/member-chat/messages?member_id={member_id}&influencer_id={second_influencer['id']}",
+    )
+    assert_status(status, 200, "admin second influencer conversation")
+    second_messages = second_conversation.get("messages", [])
+    assert len([item for item in second_messages if item.get("message") == shared_message]) == 1
+    assert any((item.get("attachment") or {}).get("type") == "image/png" for item in second_messages)
+
+    status, admin_rooms = api(admin, "GET", f"/api/admin/member-chat/rooms?q={member_id}")
+    assert_status(status, 200, "admin multi-influencer room list")
+    admin_room_keys = {
+        (room.get("memberId"), room.get("influencer", {}).get("id"))
+        for room in admin_rooms.get("rooms", [])
+    }
+    assert {
+        (member_id, influencer["id"]),
+        (member_id, second_influencer["id"]),
+    }.issubset(admin_room_keys)
 
     status, members = api(admin, "GET", f"/api/admin/members?q={member_id}")
     assert_status(status, 200, "final member state")
@@ -268,8 +349,9 @@ def main() -> int:
                 "member": member_id,
                 "signupCode": signup_code,
                 "influencer": influencer["id"],
+                "secondInfluencer": second_influencer["id"],
                 "finalCandy": row["candy"],
-                "checks": 39,
+                "checks": 54,
             },
             ensure_ascii=False,
         )

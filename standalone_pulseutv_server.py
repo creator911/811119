@@ -815,7 +815,7 @@ def ensure_local_assets(site_dir: Path) -> None:
         )
 
 
-def init_db(db_path: Path, backup_dir: Path | None) -> None:
+def init_db(db_path: Path, backup_dir: Path | None, site_dir: Path | None = None) -> None:
     db_path.parent.mkdir(parents=True, exist_ok=True)
     with sqlite3.connect(db_path) as db:
         db.execute(
@@ -915,7 +915,14 @@ def init_db(db_path: Path, backup_dir: Path | None) -> None:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 sender_id TEXT NOT NULL,
                 receiver_id TEXT NOT NULL,
+                member_id TEXT NOT NULL DEFAULT '',
+                influencer_id TEXT NOT NULL DEFAULT '',
                 message TEXT NOT NULL,
+                attachment_name TEXT NOT NULL DEFAULT '',
+                attachment_type TEXT NOT NULL DEFAULT '',
+                attachment_data TEXT NOT NULL DEFAULT '',
+                dedupe_key TEXT NOT NULL DEFAULT '',
+                created_minute TEXT NOT NULL DEFAULT '',
                 created_at TEXT NOT NULL,
                 read_at TEXT NOT NULL DEFAULT ''
             )"""
@@ -923,10 +930,18 @@ def init_db(db_path: Path, backup_dir: Path | None) -> None:
         chat_message_columns = {
             row[1] for row in db.execute("PRAGMA table_info(chat_messages)").fetchall()
         }
-        if "read_at" not in chat_message_columns:
-            db.execute(
-                "ALTER TABLE chat_messages ADD COLUMN read_at TEXT NOT NULL DEFAULT ''"
-            )
+        for column, definition in {
+            "member_id": "TEXT NOT NULL DEFAULT ''",
+            "influencer_id": "TEXT NOT NULL DEFAULT ''",
+            "attachment_name": "TEXT NOT NULL DEFAULT ''",
+            "attachment_type": "TEXT NOT NULL DEFAULT ''",
+            "attachment_data": "TEXT NOT NULL DEFAULT ''",
+            "dedupe_key": "TEXT NOT NULL DEFAULT ''",
+            "created_minute": "TEXT NOT NULL DEFAULT ''",
+            "read_at": "TEXT NOT NULL DEFAULT ''",
+        }.items():
+            if column not in chat_message_columns:
+                db.execute(f"ALTER TABLE chat_messages ADD COLUMN {column} {definition}")
         db.execute(
             """CREATE TABLE IF NOT EXISTS member_chat_rooms (
                 member_id TEXT NOT NULL,
@@ -945,26 +960,60 @@ def init_db(db_path: Path, backup_dir: Path | None) -> None:
             "ON chat_messages(receiver_id,read_at,id)"
         )
         db.execute(
+            "CREATE INDEX IF NOT EXISTS chat_messages_room_idx "
+            "ON chat_messages(member_id,influencer_id,id)"
+        )
+        db.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS chat_messages_room_dedupe_idx "
+            "ON chat_messages(member_id,influencer_id,sender_id,dedupe_key,created_minute) "
+            "WHERE member_id<>'' AND influencer_id<>'' AND dedupe_key<>''"
+        )
+        db.execute(
             "CREATE INDEX IF NOT EXISTS member_chat_rooms_member_last_idx "
             "ON member_chat_rooms(member_id,last_at DESC)"
         )
+        user_ids = {
+            str(row[0]) for row in db.execute("SELECT id FROM users").fetchall()
+        }
+        influencer_ids: set[str] = set()
+        if site_dir is not None:
+            influencer_ids = set(member_chat_profiles(site_dir / "chatlist.php.html"))
+        unresolved = db.execute(
+            """SELECT id,sender_id,receiver_id FROM chat_messages
+               WHERE member_id='' AND influencer_id=''
+                 AND receiver_id NOT LIKE 'live:%' AND sender_id<>receiver_id"""
+        ).fetchall()
+        for message_id, sender_id, receiver_id in unresolved:
+            sender = str(sender_id)
+            receiver = str(receiver_id)
+            member_id = ""
+            influencer_id = ""
+            if sender in user_ids and receiver in influencer_ids:
+                member_id, influencer_id = sender, receiver
+            elif receiver in user_ids and sender in influencer_ids:
+                member_id, influencer_id = receiver, sender
+            elif sender in user_ids and receiver not in user_ids:
+                member_id, influencer_id = sender, receiver
+            elif receiver in user_ids and sender not in user_ids:
+                member_id, influencer_id = receiver, sender
+            if member_id and influencer_id:
+                db.execute(
+                    "UPDATE chat_messages SET member_id=?,influencer_id=? WHERE id=?",
+                    (member_id, influencer_id, message_id),
+                )
         db.execute(
-            """INSERT OR IGNORE INTO member_chat_rooms(
-                   member_id,influencer_id,last_at,created_at
-               )
-               SELECT sender_id,receiver_id,MAX(created_at),MIN(created_at)
-               FROM chat_messages
-               WHERE receiver_id NOT LIKE 'live:%' AND sender_id<>receiver_id
-               GROUP BY sender_id,receiver_id"""
+            """DELETE FROM member_chat_rooms
+               WHERE member_id NOT IN (SELECT id FROM users)
+                 AND influencer_id IN (SELECT id FROM users)"""
         )
         db.execute(
-            """INSERT OR IGNORE INTO member_chat_rooms(
-                   member_id,influencer_id,last_at,created_at
-               )
-               SELECT receiver_id,sender_id,MAX(created_at),MIN(created_at)
+            """INSERT INTO member_chat_rooms(member_id,influencer_id,last_at,created_at)
+               SELECT member_id,influencer_id,MAX(created_at),MIN(created_at)
                FROM chat_messages
-               WHERE receiver_id NOT LIKE 'live:%' AND sender_id<>receiver_id
-               GROUP BY receiver_id,sender_id"""
+               WHERE member_id<>'' AND influencer_id<>''
+               GROUP BY member_id,influencer_id
+               ON CONFLICT(member_id,influencer_id) DO UPDATE SET
+                 last_at=MAX(member_chat_rooms.last_at,excluded.last_at)"""
         )
         db.execute(
             """CREATE TABLE IF NOT EXISTS support_rooms (
@@ -1911,7 +1960,7 @@ def render_dynamic_page(
         member_chat_script = soup.new_tag(
             "script",
             id="candycast-member-chat-script",
-            src="/assets/local/candycast-member-chat.js",
+            src="/assets/local/candycast-member-chat.js?v=20260717-chat2",
             defer=True,
         )
         soup.body.append(member_chat_script)
@@ -2254,8 +2303,13 @@ MEMBER_CHAT_ADMIN_MARKUP = """
       <div class="cc-chat-active-meta" id="cc-chat-active-meta"><strong>대화 상대를 선택하세요.</strong><span>회원과 BJ를 선택하면 기존 대화가 표시됩니다.</span></div>
       <div class="cc-chat-admin-messages" id="cc-chat-admin-messages" aria-live="polite"><p class="cc-admin-empty">표시할 대화가 없습니다.</p></div>
       <form class="cc-chat-admin-composer" id="cc-chat-admin-composer">
-        <textarea name="message" rows="2" maxlength="1000" required placeholder="선택한 BJ 이름으로 보낼 메시지" disabled></textarea>
-        <button type="submit" class="cc-admin-primary" disabled>전송</button>
+        <div class="cc-chat-admin-attachment" id="cc-chat-admin-attachment" hidden><img alt="첨부 이미지 미리보기"><span></span><button type="button" data-chat-action="remove-attachment" aria-label="첨부 이미지 삭제">&times;</button></div>
+        <div class="cc-chat-admin-composer-row">
+          <input id="cc-chat-admin-file" type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden>
+          <button type="button" class="cc-chat-admin-attach" data-chat-action="attach" aria-label="사진 첨부" disabled>&#128206;</button>
+          <textarea name="message" rows="2" maxlength="1000" placeholder="선택한 BJ 이름으로 보낼 메시지" disabled></textarea>
+          <button type="submit" class="cc-admin-primary" disabled>전송</button>
+        </div>
       </form>
     </section>
   </div>
@@ -2305,6 +2359,24 @@ def support_message_payload(row: sqlite3.Row) -> dict[str, object]:
         "message": row["message"],
         "attachment": attachment,
         "createdAt": row["created_at"],
+    }
+
+
+def member_chat_message_payload(row: sqlite3.Row, member_id: str) -> dict[str, object]:
+    attachment = None
+    if row["attachment_data"]:
+        attachment = {
+            "name": row["attachment_name"],
+            "type": row["attachment_type"],
+            "data": row["attachment_data"],
+        }
+    return {
+        "id": int(row["id"]),
+        "sender": "member" if row["sender_id"] == member_id else "influencer",
+        "message": row["message"],
+        "attachment": attachment,
+        "createdAt": row["created_at"],
+        "readAt": row["read_at"],
     }
 
 
@@ -2695,21 +2767,25 @@ class StandaloneHandler(BaseHTTPRequestHandler):
             like = f"%{term}%"
             where = """AND (r.member_id LIKE ? OR u.nickname LIKE ? OR u.name LIKE ?
                               OR r.influencer_id LIKE ? OR COALESCE((
-                                  SELECT m.message FROM chat_messages m
-                                  WHERE (m.sender_id=r.member_id AND m.receiver_id=r.influencer_id)
-                                     OR (m.sender_id=r.influencer_id AND m.receiver_id=r.member_id)
+                                  SELECT CASE WHEN m.message<>'' THEN m.message ELSE '[이미지]' END
+                                  FROM chat_messages m
+                                  WHERE m.member_id=r.member_id
+                                    AND m.influencer_id=r.influencer_id
                                   ORDER BY m.id DESC LIMIT 1
                               ),'') LIKE ?)"""
             params.extend([like, like, like, like, like])
         with self.support_db() as db:
             rows = db.execute(
                 f"""SELECT r.member_id,r.influencer_id,r.last_at,u.nickname,u.name,
-                           COALESCE((SELECT m.message FROM chat_messages m
-                             WHERE (m.sender_id=r.member_id AND m.receiver_id=r.influencer_id)
-                                OR (m.sender_id=r.influencer_id AND m.receiver_id=r.member_id)
+                           COALESCE((SELECT CASE WHEN m.message<>'' THEN m.message ELSE '[이미지]' END
+                             FROM chat_messages m
+                             WHERE m.member_id=r.member_id
+                               AND m.influencer_id=r.influencer_id
                              ORDER BY m.id DESC LIMIT 1),'') AS last_message,
                            (SELECT COUNT(*) FROM chat_messages m
-                             WHERE m.sender_id=r.member_id AND m.receiver_id=r.influencer_id
+                             WHERE m.member_id=r.member_id
+                               AND m.influencer_id=r.influencer_id
+                               AND m.sender_id=r.member_id
                                AND m.read_at='') AS unread
                     FROM member_chat_rooms r JOIN users u ON u.id=r.member_id
                     WHERE r.influencer_id NOT LIKE 'live:%' {where}
@@ -2751,15 +2827,18 @@ class StandaloneHandler(BaseHTTPRequestHandler):
             if mark_read:
                 db.execute(
                     """UPDATE chat_messages SET read_at=?
-                       WHERE sender_id=? AND receiver_id=? AND read_at=''""",
-                    (now_text(), member_id, influencer_id),
+                       WHERE member_id=? AND influencer_id=?
+                         AND sender_id=? AND receiver_id=? AND read_at=''""",
+                    (now_text(), member_id, influencer_id, member_id, influencer_id),
                 )
             rows = db.execute(
-                """SELECT id,sender_id,receiver_id,message,created_at,read_at
+                """SELECT id,sender_id,receiver_id,message,
+                          attachment_name,attachment_type,attachment_data,
+                          created_at,read_at
                    FROM chat_messages
-                   WHERE (sender_id=? AND receiver_id=?) OR (sender_id=? AND receiver_id=?)
+                   WHERE member_id=? AND influencer_id=?
                    ORDER BY id ASC LIMIT 1000""",
-                (member_id, influencer_id, influencer_id, member_id),
+                (member_id, influencer_id),
             ).fetchall()
             db.commit()
         return {
@@ -2770,16 +2849,7 @@ class StandaloneHandler(BaseHTTPRequestHandler):
                 "phone": member["phone"],
             },
             "influencer": dict(profile),
-            "messages": [
-                {
-                    "id": int(row["id"]),
-                    "sender": "member" if row["sender_id"] == member_id else "influencer",
-                    "message": row["message"],
-                    "createdAt": row["created_at"],
-                    "readAt": row["read_at"],
-                }
-                for row in rows
-            ],
+            "messages": [member_chat_message_payload(row, member_id) for row in rows],
         }
 
     def update_member_from_admin(self, data: dict[str, object]) -> dict[str, object]:
@@ -2871,6 +2941,7 @@ class StandaloneHandler(BaseHTTPRequestHandler):
                     "UPDATE signup_codes SET used_by=? WHERE used_by=?",
                     "UPDATE candy_gifts SET member_id=? WHERE member_id=?",
                     "UPDATE member_chat_rooms SET member_id=? WHERE member_id=?",
+                    "UPDATE chat_messages SET member_id=? WHERE member_id=?",
                     "UPDATE chat_messages SET sender_id=? WHERE sender_id=?",
                     "UPDATE chat_messages SET receiver_id=? WHERE receiver_id=?",
                 ):
@@ -2955,8 +3026,10 @@ class StandaloneHandler(BaseHTTPRequestHandler):
             )
             db.execute("UPDATE users SET balance=? WHERE id=?", (new_balance, member_id))
             db.execute(
-                "INSERT INTO chat_messages(sender_id,receiver_id,message,created_at) VALUES(?,?,?,?)",
-                (influencer_id, member_id, message, created_at),
+                """INSERT INTO chat_messages(
+                       sender_id,receiver_id,member_id,influencer_id,message,created_at
+                   ) VALUES(?,?,?,?,?,?)""",
+                (influencer_id, member_id, member_id, influencer_id, message, created_at),
             )
             self.touch_member_chat_room(db, member_id, influencer_id, created_at)
             db.execute(
@@ -2970,26 +3043,25 @@ class StandaloneHandler(BaseHTTPRequestHandler):
     def send_admin_member_chat_message(self, data: dict[str, object]) -> dict[str, object]:
         member_id = str(data.get("memberId", "")).strip()[:100]
         influencer_id = str(data.get("influencerId", "")).strip()[:100]
-        message = str(data.get("message", "")).strip()[:1000]
         if not member_id or not influencer_id:
             raise ValueError("회원과 보내는 BJ를 선택해주세요.")
-        if not message:
-            raise ValueError("메시지를 입력해주세요.")
         profiles = member_chat_profiles(self.root / "chatlist.php.html")
         if influencer_id not in profiles:
             raise ValueError("선택한 BJ를 찾을 수 없습니다.")
-        created_at = now_text()
         with self.support_db() as db:
+            db.execute("BEGIN IMMEDIATE")
             member = db.execute("SELECT id FROM users WHERE id=?", (member_id,)).fetchone()
             if member is None:
                 raise LookupError("회원을 찾을 수 없습니다.")
-            cursor = db.execute(
-                "INSERT INTO chat_messages(sender_id,receiver_id,message,created_at) VALUES(?,?,?,?)",
-                (influencer_id, member_id, message, created_at),
+            payload = self.add_member_chat_message(
+                db,
+                member_id,
+                influencer_id,
+                influencer_id,
+                data,
             )
-            self.touch_member_chat_room(db, member_id, influencer_id, created_at)
             db.commit()
-        return {"ok": True, "id": int(cursor.lastrowid), "createdAt": created_at}
+        return payload
 
     def request_data(self) -> dict[str, object]:
         length = int(self.headers.get("Content-Length", "0") or 0)
@@ -3050,26 +3122,116 @@ class StandaloneHandler(BaseHTTPRequestHandler):
             (member_id, influencer_id, timestamp, timestamp),
         )
 
+    def add_member_chat_message(
+        self,
+        db: sqlite3.Connection,
+        member_id: str,
+        influencer_id: str,
+        sender_id: str,
+        data: dict[str, object],
+    ) -> dict[str, object]:
+        message = str(data.get("message", "")).strip()[:1000]
+        attachment_name, attachment_type, attachment_data = normalize_support_attachment(
+            data.get("attachment")
+        )
+        if not message and not attachment_data:
+            raise ValueError("메시지 또는 이미지를 입력해 주세요.")
+        if sender_id not in {member_id, influencer_id}:
+            raise ValueError("채팅 발신자 정보가 올바르지 않습니다.")
+
+        receiver_id = influencer_id if sender_id == member_id else member_id
+        created_at = now_text()
+        created_minute = created_at[:16]
+        digest_source = "\0".join((message, attachment_type, attachment_data))
+        dedupe_key = hashlib.sha256(digest_source.encode("utf-8")).hexdigest()
+        cursor = db.execute(
+            """INSERT OR IGNORE INTO chat_messages(
+                   sender_id,receiver_id,member_id,influencer_id,message,
+                   attachment_name,attachment_type,attachment_data,
+                   dedupe_key,created_minute,created_at
+               ) VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
+            (
+                sender_id,
+                receiver_id,
+                member_id,
+                influencer_id,
+                message,
+                attachment_name,
+                attachment_type,
+                attachment_data,
+                dedupe_key,
+                created_minute,
+                created_at,
+            ),
+        )
+        duplicate = cursor.rowcount == 0
+        if duplicate:
+            existing = db.execute(
+                """SELECT id,created_at FROM chat_messages
+                   WHERE member_id=? AND influencer_id=? AND sender_id=?
+                     AND dedupe_key=? AND created_minute=?""",
+                (member_id, influencer_id, sender_id, dedupe_key, created_minute),
+            ).fetchone()
+            message_id = int(existing["id"])
+            room_timestamp = str(existing["created_at"])
+        else:
+            message_id = int(cursor.lastrowid)
+            room_timestamp = created_at
+        self.touch_member_chat_room(db, member_id, influencer_id, room_timestamp)
+        return {
+            "ok": True,
+            "id": message_id,
+            "createdAt": room_timestamp,
+            "duplicate": duplicate,
+        }
+
+    def send_member_chat_message(
+        self,
+        member_id: str,
+        data: dict[str, object],
+    ) -> dict[str, object]:
+        influencer_id = str(data.get("influencerId", "")).strip()[:100]
+        profiles = member_chat_profiles(self.root / "chatlist.php.html")
+        if not influencer_id or influencer_id not in profiles:
+            raise ValueError("선택한 BJ를 찾을 수 없습니다.")
+        with self.support_db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            member = db.execute("SELECT id FROM users WHERE id=?", (member_id,)).fetchone()
+            if member is None:
+                raise LookupError("회원을 찾을 수 없습니다.")
+            payload = self.add_member_chat_message(
+                db,
+                member_id,
+                influencer_id,
+                member_id,
+                data,
+            )
+            db.commit()
+        return payload
+
     def member_chat_rooms_payload(self, member_id: str) -> dict[str, object]:
         with self.support_db() as db:
             rows = db.execute(
                 """SELECT r.influencer_id,
                           COALESCE((
-                            SELECT m.message FROM chat_messages m
-                            WHERE (m.sender_id=r.member_id AND m.receiver_id=r.influencer_id)
-                               OR (m.sender_id=r.influencer_id AND m.receiver_id=r.member_id)
-                            ORDER BY m.id DESC LIMIT 1
+                             SELECT CASE WHEN m.message<>'' THEN m.message ELSE '[이미지]' END
+                             FROM chat_messages m
+                             WHERE m.member_id=r.member_id
+                               AND m.influencer_id=r.influencer_id
+                             ORDER BY m.id DESC LIMIT 1
                           ),'') AS last_message,
                           COALESCE((
-                            SELECT m.created_at FROM chat_messages m
-                            WHERE (m.sender_id=r.member_id AND m.receiver_id=r.influencer_id)
-                               OR (m.sender_id=r.influencer_id AND m.receiver_id=r.member_id)
-                            ORDER BY m.id DESC LIMIT 1
+                             SELECT m.created_at FROM chat_messages m
+                             WHERE m.member_id=r.member_id
+                               AND m.influencer_id=r.influencer_id
+                             ORDER BY m.id DESC LIMIT 1
                           ),r.last_at) AS updated_at,
                           (SELECT COUNT(*) FROM chat_messages m
-                           WHERE m.sender_id=r.influencer_id
-                             AND m.receiver_id=r.member_id
-                             AND m.read_at='') AS unread
+                           WHERE m.member_id=r.member_id
+                             AND m.influencer_id=r.influencer_id
+                             AND m.sender_id=r.influencer_id
+                              AND m.receiver_id=r.member_id
+                              AND m.read_at='') AS unread
                    FROM member_chat_rooms r
                    WHERE r.member_id=? AND r.influencer_id NOT LIKE 'live:%'
                    ORDER BY updated_at DESC,r.influencer_id ASC
@@ -3327,6 +3489,7 @@ class StandaloneHandler(BaseHTTPRequestHandler):
         markup: str,
         stylesheet: str,
         script: str,
+        dependency_scripts: tuple[str, ...] = (),
     ) -> bytes:
         try:
             from bs4 import BeautifulSoup
@@ -3352,10 +3515,12 @@ class StandaloneHandler(BaseHTTPRequestHandler):
         for child in list(fragment.contents):
             container.append(child)
         if soup.head is not None:
-            style = soup.new_tag("link", rel="stylesheet", href=f"{stylesheet}?v=20260716-grade2")
+            style = soup.new_tag("link", rel="stylesheet", href=f"{stylesheet}?v=20260717-chat2")
             soup.head.append(style)
         if soup.body is not None:
-            application_script = soup.new_tag("script", src=f"{script}?v=20260716-grade2")
+            for dependency in dependency_scripts:
+                soup.body.append(soup.new_tag("script", src=dependency))
+            application_script = soup.new_tag("script", src=f"{script}?v=20260717-chat2")
             soup.body.append(application_script)
         return str(soup).encode("utf-8")
 
@@ -3384,6 +3549,7 @@ class StandaloneHandler(BaseHTTPRequestHandler):
             MEMBER_CHAT_ADMIN_MARKUP,
             "/assets/local/candycast-admin-member-chat.css",
             "/assets/local/candycast-admin-member-chat.js",
+            ("/assets/local/candycast-image-utils.js",),
         )
 
     def do_GET(self) -> None:  # noqa: N802
@@ -3781,6 +3947,25 @@ class StandaloneHandler(BaseHTTPRequestHandler):
             except LookupError as exc:
                 self.send_json({"error": str(exc)}, HTTPStatus.NOT_FOUND)
             return
+        if path == "/api/member/chat/messages":
+            current_user = self.current_user()
+            if not current_user or current_user == ADMIN_ID:
+                self.send_json({"error": "로그인이 필요합니다."}, HTTPStatus.UNAUTHORIZED)
+                return
+            restriction = self.member_action_restriction(current_user)
+            if restriction:
+                self.send_json({"error": restriction}, HTTPStatus.LOCKED)
+                return
+            try:
+                self.send_json(
+                    self.send_member_chat_message(current_user, data),
+                    HTTPStatus.CREATED,
+                )
+            except ValueError as exc:
+                self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+            except LookupError as exc:
+                self.send_json({"error": str(exc)}, HTTPStatus.NOT_FOUND)
+            return
         if path.startswith("/api/admin/") and self.current_user() != ADMIN_ID:
             self.send_json({"error": "관리자 로그인이 필요합니다."}, HTTPStatus.FORBIDDEN)
             return
@@ -3967,20 +4152,18 @@ class StandaloneHandler(BaseHTTPRequestHandler):
                     HTTPStatus.LOCKED if restriction else HTTPStatus.BAD_REQUEST,
                 )
                 return
-            created_at = now_text()
-            with self.support_db() as db:
-                db.execute(
-                    "INSERT INTO chat_messages(sender_id,receiver_id,message,created_at) VALUES(?,?,?,?)",
-                    (
-                        current_user,
-                        receiver,
-                        message[:1000],
-                        created_at,
-                    ),
+            try:
+                self.send_member_chat_message(
+                    current_user,
+                    {"influencerId": receiver, "message": message},
                 )
-                self.touch_member_chat_room(db, current_user, receiver, created_at)
-                self.touch_member_chat_room(db, receiver, current_user, created_at)
-                db.commit()
+            except (ValueError, LookupError) as exc:
+                self.send_bytes(
+                    str(exc).encode("utf-8"),
+                    "text/plain; charset=utf-8",
+                    HTTPStatus.BAD_REQUEST,
+                )
+                return
             self.send_redirect(f"/chat/memo_form.php?me_recv_mb_id={quote(receiver)}")
             return
         if path == "/chat/live_message":
@@ -4525,29 +4708,46 @@ class StandaloneHandler(BaseHTTPRequestHandler):
             self.touch_member_chat_room(db, current_user, receiver, viewed_at)
             db.execute(
                 """UPDATE chat_messages SET read_at=?
-                   WHERE sender_id=? AND receiver_id=? AND read_at=''""",
-                (viewed_at, receiver, current_user),
+                   WHERE member_id=? AND influencer_id=?
+                     AND sender_id=? AND receiver_id=? AND read_at=''""",
+                (viewed_at, current_user, receiver, receiver, current_user),
             )
             rows = db.execute(
-                """SELECT sender_id,receiver_id,message,created_at FROM chat_messages
-                   WHERE (sender_id=? AND receiver_id=?) OR (sender_id=? AND receiver_id=?)
+                """SELECT id,sender_id,receiver_id,message,
+                          attachment_name,attachment_type,attachment_data,
+                          created_at,read_at
+                   FROM chat_messages
+                   WHERE member_id=? AND influencer_id=?
                    ORDER BY id ASC LIMIT 500""",
-                (current_user, receiver, receiver, current_user),
+                (current_user, receiver),
             ).fetchall()
             db.commit()
         profile = self.member_chat_profile(receiver)
         room_name = profile["name"]
         room_subtitle = profile["nickname"]
         profile_image = profile["image"]
-        bubbles = "".join(
-            f'<li class="{"mine" if sender == current_user else "theirs"}"><div>'
-            f'<strong>{"나" if sender == current_user else html.escape(room_name)}</strong>'
-            f'<p>{html.escape(message)}</p><time>{html.escape(created)}</time></div></li>'
-            for sender, _receiver, message, created in rows
-        ) or '<li class="empty">첫 메시지를 보내 대화를 시작해보세요.</li>'
+        bubble_items = []
+        for row in rows:
+            sender = str(row["sender_id"])
+            message = str(row["message"] or "")
+            attachment_html = ""
+            if row["attachment_data"]:
+                attachment_html = (
+                    '<img class="cc-chat-message-image" '
+                    f'src="{html.escape(str(row["attachment_data"]), quote=True)}" '
+                    f'alt="{html.escape(str(row["attachment_name"] or "첨부 이미지"), quote=True)}">'
+                )
+            message_html = f"<p>{html.escape(message)}</p>" if message else ""
+            bubble_items.append(
+                f'<li class="{"mine" if sender == current_user else "theirs"}"><div>'
+                f'<strong>{"나" if sender == current_user else html.escape(room_name)}</strong>'
+                f'{message_html}{attachment_html}'
+                f'<time>{html.escape(str(row["created_at"]))}</time></div></li>'
+            )
+        bubbles = "".join(bubble_items) or '<li class="empty">첫 메시지를 보내 대화를 시작해보세요.</li>'
         page = f"""<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>{html.escape(room_name)} | CandyCast 채팅</title><style>
-*{{box-sizing:border-box;letter-spacing:0}}html,body{{height:100%}}body{{margin:0;font-family:Arial,'Malgun Gothic',sans-serif;background:#eef0f4;color:#222}}.cc-chat-header{{height:64px;max-width:720px;margin:0 auto;background:#fff;display:grid;grid-template-columns:44px 44px minmax(0,1fr) 44px;align-items:center;gap:10px;padding:7px 14px;border-bottom:1px solid #dedfe4}}.cc-chat-back,.cc-chat-close{{display:flex;width:44px;height:44px;align-items:center;justify-content:center;color:#222!important;line-height:1;text-decoration:none!important}}.cc-chat-back{{font-size:36px}}.cc-chat-close{{border-radius:50%;font-size:29px}}.cc-chat-back:hover,.cc-chat-close:hover{{background:#f2f3f5}}.cc-chat-back:focus-visible,.cc-chat-close:focus-visible{{outline:2px solid #ef4778;outline-offset:-2px}}.cc-chat-avatar{{width:44px;height:44px;border-radius:50%;object-fit:cover;background:#f0f1f4}}.cc-chat-heading{{min-width:0;display:flex;flex-direction:column}}.cc-chat-heading strong,.cc-chat-heading span{{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}.cc-chat-heading strong{{font-size:16px}}.cc-chat-heading span{{margin-top:2px;color:#7b7e86;font-size:12px}}main{{height:calc(100vh - 64px);height:calc(100dvh - 64px);display:grid;grid-template-rows:minmax(0,1fr) auto;max-width:720px;margin:0 auto;background:#fff}}.cc-chat-messages{{list-style:none;margin:0;padding:18px;overflow:auto;overscroll-behavior:contain;background:#f7f8fa}}.cc-chat-messages li{{display:flex;margin:0 0 12px}}.cc-chat-messages li.mine{{justify-content:flex-end}}.cc-chat-messages li>div{{max-width:78%;background:#fff;padding:10px 12px;border:1px solid #e1e2e6;border-radius:4px 12px 12px 12px;box-shadow:0 1px 2px rgba(25,28,38,.06)}}.cc-chat-messages li.mine>div{{background:#ffe2eb;border-color:#ffd2df;border-radius:12px 4px 12px 12px}}.cc-chat-messages li strong{{display:block;font-size:12px}}.cc-chat-messages li p{{margin:4px 0;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}}.cc-chat-messages li time{{display:block;color:#8a8d94;font-size:11px;text-align:right}}.cc-chat-messages li.empty{{justify-content:center;color:#888;padding-top:80px}}.cc-chat-composer{{display:flex;gap:8px;border-top:1px solid #dedfe4;padding:10px 12px;background:#fff}}.cc-chat-composer textarea{{min-width:0;flex:1;resize:none;height:52px;border:1px solid #c7c9cf;border-radius:4px;padding:9px 11px;font:inherit;line-height:1.4}}.cc-chat-composer button{{width:74px;min-height:44px;border:0;border-radius:4px;background:#ef4778;color:#fff;font-weight:700;cursor:pointer}}
-</style></head><body class="cc-public-page cc-page-chat cc-mobile-immersive" data-cc-authenticated="1" data-cc-user="{html.escape(current_user, quote=True)}" data-balance-status="{html.escape(str(member_state['balance_status']), quote=True)}" data-account-status="{html.escape(str(member_state['account_status']), quote=True)}"><header class="cc-chat-header"><a class="cc-chat-back" href="/chatlist.php" aria-label="채팅 목록으로 돌아가기">&#8249;</a><img class="cc-chat-avatar" src="{html.escape(profile_image, quote=True)}" alt=""><div class="cc-chat-heading"><strong>{html.escape(room_name)}</strong><span>{html.escape(room_subtitle)}</span></div><a class="cc-chat-close" href="/chatlist.php" aria-label="인플루언서 채팅 닫기">&times;</a></header><main><ul class="cc-chat-messages" aria-live="polite">{bubbles}</ul><form class="cc-chat-composer" method="post" action="/chat/memo_form.php?me_recv_mb_id={quote(receiver)}"><textarea name="message" maxlength="1000" required placeholder="메시지를 입력하세요" aria-label="메시지"></textarea><button type="submit">전송</button></form></main></body></html>"""
+*{{box-sizing:border-box;letter-spacing:0}}html,body{{height:100%}}body{{margin:0;font-family:Arial,'Malgun Gothic',sans-serif;background:#eef0f4;color:#222}}.cc-chat-header{{height:64px;max-width:720px;margin:0 auto;background:#fff;display:grid;grid-template-columns:44px 44px minmax(0,1fr) 44px;align-items:center;gap:10px;padding:7px 14px;border-bottom:1px solid #dedfe4}}.cc-chat-back,.cc-chat-close{{display:flex;width:44px;height:44px;align-items:center;justify-content:center;color:#222!important;line-height:1;text-decoration:none!important}}.cc-chat-back{{font-size:36px}}.cc-chat-close{{border-radius:50%;font-size:29px}}.cc-chat-back:hover,.cc-chat-close:hover{{background:#f2f3f5}}.cc-chat-back:focus-visible,.cc-chat-close:focus-visible{{outline:2px solid #ef4778;outline-offset:-2px}}.cc-chat-avatar{{width:44px;height:44px;border-radius:50%;object-fit:cover;background:#f0f1f4}}.cc-chat-heading{{min-width:0;display:flex;flex-direction:column}}.cc-chat-heading strong,.cc-chat-heading span{{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}.cc-chat-heading strong{{font-size:16px}}.cc-chat-heading span{{margin-top:2px;color:#7b7e86;font-size:12px}}main{{height:calc(100vh - 64px);height:calc(100dvh - 64px);display:grid;grid-template-rows:minmax(0,1fr) auto;max-width:720px;margin:0 auto;background:#fff}}.cc-chat-messages{{list-style:none;margin:0;padding:18px;overflow:auto;overscroll-behavior:contain;background:#f7f8fa}}.cc-chat-messages li{{display:flex;margin:0 0 12px}}.cc-chat-messages li.mine{{justify-content:flex-end}}.cc-chat-messages li>div{{max-width:78%;background:#fff;padding:10px 12px;border:1px solid #e1e2e6;border-radius:4px 12px 12px 12px;box-shadow:0 1px 2px rgba(25,28,38,.06)}}.cc-chat-messages li.mine>div{{background:#ffe2eb;border-color:#ffd2df;border-radius:12px 4px 12px 12px}}.cc-chat-messages li strong{{display:block;font-size:12px}}.cc-chat-messages li p{{margin:4px 0;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}}.cc-chat-messages li time{{display:block;color:#8a8d94;font-size:11px;text-align:right}}.cc-chat-messages li.empty{{justify-content:center;color:#888;padding-top:80px}}.cc-chat-composer{{border-top:1px solid #dedfe4;padding:9px 12px;background:#fff}}.cc-chat-composer-row{{display:flex;align-items:flex-end;gap:8px}}.cc-chat-composer textarea{{min-width:0;flex:1;resize:none;height:48px;max-height:112px;border:1px solid #c7c9cf;border-radius:4px;padding:9px 11px;font:inherit;line-height:1.4}}.cc-chat-attach,.cc-chat-send{{min-height:44px;border:0;border-radius:4px;cursor:pointer}}.cc-chat-attach{{width:44px;background:#eef0f4;color:#4d5360;font-size:21px}}.cc-chat-send{{width:74px;background:#ef4778;color:#fff;font-weight:700}}.cc-chat-attach:disabled,.cc-chat-send:disabled{{cursor:wait;opacity:.55}}.cc-chat-attachment-preview{{display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:6px 8px;border:1px solid #e1e2e6;border-radius:4px;background:#f7f8fa}}.cc-chat-attachment-preview[hidden]{{display:none!important}}.cc-chat-attachment-preview img{{width:44px;height:44px;border-radius:4px;object-fit:cover}}.cc-chat-attachment-preview span{{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:#666}}.cc-chat-attachment-preview button{{width:36px;height:36px;border:0;background:transparent;font-size:22px;cursor:pointer}}.cc-chat-message-image{{display:block;max-width:min(100%,360px);max-height:360px;margin-top:7px;border-radius:6px;object-fit:contain;background:#eceef2}}
+</style></head><body class="cc-public-page cc-page-chat cc-mobile-immersive" data-cc-authenticated="1" data-cc-user="{html.escape(current_user, quote=True)}" data-balance-status="{html.escape(str(member_state['balance_status']), quote=True)}" data-account-status="{html.escape(str(member_state['account_status']), quote=True)}"><header class="cc-chat-header"><a class="cc-chat-back" href="/chatlist.php" aria-label="채팅 목록으로 돌아가기">&#8249;</a><img class="cc-chat-avatar" src="{html.escape(profile_image, quote=True)}" alt=""><div class="cc-chat-heading"><strong>{html.escape(room_name)}</strong><span>{html.escape(room_subtitle)}</span></div><a class="cc-chat-close" href="/chatlist.php" aria-label="인플루언서 채팅 닫기">&times;</a></header><main><ul class="cc-chat-messages" aria-live="polite">{bubbles}</ul><form class="cc-chat-composer" method="post" action="/chat/memo_form.php?me_recv_mb_id={quote(receiver)}" data-influencer-id="{html.escape(receiver, quote=True)}"><div class="cc-chat-attachment-preview" hidden><img alt="첨부 이미지 미리보기"><span></span><button type="button" data-cc-chat-action="remove-attachment" aria-label="첨부 이미지 삭제">&times;</button></div><div class="cc-chat-composer-row"><input id="cc-member-chat-file" type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden><button type="button" class="cc-chat-attach" data-cc-chat-action="attach" aria-label="사진 첨부">&#128206;</button><textarea name="message" maxlength="1000" placeholder="메시지를 입력하세요" aria-label="메시지"></textarea><button type="submit" class="cc-chat-send">전송</button></div></form></main></body></html>"""
         page = page.replace(
             "</head>",
             '<link rel="stylesheet" href="/assets/local/candycast-support.css">'
@@ -4559,8 +4759,9 @@ class StandaloneHandler(BaseHTTPRequestHandler):
             support_widget_markup(True, current_user, self.display_name(current_user))
             + member_chat_widget_markup()
             + mobile_navigation_markup(True)
+            + '<script src="/assets/local/candycast-image-utils.js" defer></script>'
             + '<script src="/assets/local/candycast-support.js" defer></script>'
-            + '<script src="/assets/local/candycast-member-chat.js" defer></script>'
+            + '<script src="/assets/local/candycast-member-chat.js?v=20260717-chat2" defer></script>'
             + '<script src="/assets/local/candycast-mobile.js" defer></script>'
             + '<script src="/assets/local/candycast-restrictions.js" defer></script></body>',
         )
@@ -4743,7 +4944,7 @@ def main() -> int:
         prepare_site(source, site_dir)
         normalize_admin_brand_tree(site_dir / "adm")
     ensure_local_assets(site_dir)
-    init_db(db_path, backup_dir)
+    init_db(db_path, backup_dir, site_dir)
     if args.prepare_only:
         print(site_dir)
         return 0
