@@ -4,7 +4,7 @@
   if (!app || app.dataset.bound === "1") return;
   app.dataset.bound = "1";
 
-  var state = { rooms: [], selectedId: 0, detail: null, listBusy: false, roomBusy: false, attachment: null, signature: "", mobileListMode: false };
+  var state = { rooms: [], selectedId: 0, detail: null, listBusy: false, roomBusy: false, attachment: null, signature: "", mobileListMode: false, editingId: 0 };
   var queueNames = { important: "중요상담함", uda: "우다상담함", normal: "일반상담함", bura: "부라상담함" };
   var queueShort = { important: "중요", uda: "우다", normal: "일반", bura: "부라" };
   var statusNode = document.getElementById("cc-support-admin-connection");
@@ -120,19 +120,30 @@
   function staffMessage(item) {
     var side = item.senderType === "staff" ? "staff" : "member";
     var name = side === "staff" ? "상담사" : (state.detail && roomName(state.detail.room));
-    return "<div class=\"cc-support-admin-message " + side + "\"><div><b>" + escapeHtml(name || "회원") + "</b><p>" + escapeHtml(item.message || "") + attachmentMarkup(item) + "</p><time>" + escapeHtml(timeLabel(item.createdAt)) + "</time></div></div>";
+    var deleted = Boolean(item.deletedByMember);
+    var message = deleted ? "삭제된 메시지입니다." : (item.message || "");
+    var editButton = deleted ? "" : "<button type=\"button\" data-message-action=\"edit\" data-message-id=\"" + item.id + "\">수정</button>";
+    var edited = item.editedAt && !deleted ? "<small class=\"cc-support-admin-edited\">수정됨</small>" : "";
+    return "<div class=\"cc-support-admin-message " + side + (deleted ? " is-deleted" : "") + "\" data-message-id=\"" + item.id + "\"><div>" +
+      "<b>" + escapeHtml(name || "회원") + "</b><p>" + escapeHtml(message) + (deleted ? "" : attachmentMarkup(item)) + "</p>" +
+      "<span class=\"cc-support-admin-message-tools\">" + editButton + "<button type=\"button\" data-message-action=\"delete\" data-message-id=\"" + item.id + "\">삭제</button></span>" +
+      "<div class=\"cc-support-admin-inline-editor\" hidden><textarea maxlength=\"" + 1000 + "\" rows=\"2\">" + escapeHtml(item.message || "") + "</textarea><span><button type=\"button\" data-message-action=\"save\" data-message-id=\"" + item.id + "\">저장</button><button type=\"button\" data-message-action=\"cancel\">취소</button></span></div>" +
+      "<time>" + escapeHtml(timeLabel(item.createdAt)) + edited + "</time></div></div>";
   }
 
   function previewMessage(item) {
     var side = item.senderType === "staff" ? "staff" : "member";
+    var message = item.deletedByMember ? "삭제된 메시지입니다." : (item.message || "");
     return "<div class=\"cc-support-preview-message " + side + "\">" +
       (side === "staff" ? "<img class=\"cc-support-preview-avatar\" src=\"/assets/local/candycast_operator.png\" alt=\"캔디캐스트 상담원\">" : "") +
-      "<div>" + (side === "staff" ? "<b>고객센터</b>" : "") + "<p>" + escapeHtml(item.message || "") + attachmentMarkup(item) + "</p></div></div>";
+      "<div>" + (side === "staff" ? "<b>고객센터</b>" : "") + "<p>" + escapeHtml(message) + (item.deletedByMember ? "" : attachmentMarkup(item)) + "</p></div></div>";
   }
 
   function renderMessages(items, force) {
     var list = Array.isArray(items) ? items : [];
-    var signature = list.map(function (item) { return item.id; }).join(",");
+    var signature = list.map(function (item) {
+      return [item.id, item.message, item.editedAt, item.deletedByMember].join(":");
+    }).join(",");
     if (!force && signature === state.signature) return;
     var nearBottom = chatLog.scrollHeight - chatLog.scrollTop - chatLog.clientHeight < 90;
     state.signature = signature;
@@ -165,6 +176,7 @@
     state.roomBusy = true;
     state.selectedId = Number(id);
     if (!quiet) {
+      state.editingId = 0;
       state.signature = "";
       state.mobileListMode = false;
     }
@@ -219,7 +231,7 @@
       pollTimer = 0;
       var selectedId = state.selectedId;
       var requests = [refreshRooms(false)];
-      if (selectedId) requests.push(openRoom(selectedId, true, false));
+      if (selectedId && !state.editingId) requests.push(openRoom(selectedId, true, false));
       Promise.all(requests).finally(schedulePolling);
     }, POLL_INTERVAL_MS + Math.floor(Math.random() * POLL_JITTER_MS));
   }
@@ -235,6 +247,59 @@
     } else if (action === "close") {
       if (!window.confirm("이 상담방을 종료할까요? 대화 기록은 보관됩니다.")) return;
       postRoom(id, "close").then(function () { if (state.selectedId === id) resetSelection(); return refreshRooms(true); }).catch(function (error) { window.alert(error.message); });
+    }
+  });
+
+  chatLog.addEventListener("click", function (event) {
+    var button = event.target.closest("[data-message-action]");
+    if (!button || !state.selectedId) return;
+    var action = button.dataset.messageAction;
+    var message = button.closest(".cc-support-admin-message");
+    var editor = message && message.querySelector(".cc-support-admin-inline-editor");
+    var messageId = Number(button.dataset.messageId || 0);
+    if (action === "edit") {
+      state.editingId = messageId;
+      editor.hidden = false;
+      editor.querySelector("textarea").focus();
+      return;
+    }
+    if (action === "cancel") {
+      state.editingId = 0;
+      editor.hidden = true;
+      return;
+    }
+    if (action === "save") {
+      var nextMessage = editor.querySelector("textarea").value.trim();
+      if (!nextMessage) {
+        window.alert("메시지를 입력해 주세요.");
+        return;
+      }
+      button.disabled = true;
+      postRoom(state.selectedId, "edit-message", { id: messageId, message: nextMessage })
+        .then(function () {
+          state.editingId = 0;
+          state.signature = "";
+          return openRoom(state.selectedId, true);
+        })
+        .catch(function (error) {
+          button.disabled = false;
+          window.alert(error.message);
+        });
+      return;
+    }
+    if (action === "delete") {
+      if (!window.confirm("이 메시지를 삭제할까요?")) return;
+      button.disabled = true;
+      postRoom(state.selectedId, "delete-message", { id: messageId })
+        .then(function () {
+          state.editingId = 0;
+          state.signature = "";
+          return openRoom(state.selectedId, true);
+        })
+        .catch(function (error) {
+          button.disabled = false;
+          window.alert(error.message);
+        });
     }
   });
 
@@ -330,7 +395,7 @@
     }
     var selectedId = state.selectedId;
     var requests = [refreshRooms(false)];
-    if (selectedId) requests.push(openRoom(selectedId, true, false));
+    if (selectedId && !state.editingId) requests.push(openRoom(selectedId, true, false));
     Promise.all(requests).finally(schedulePolling);
   });
 })();

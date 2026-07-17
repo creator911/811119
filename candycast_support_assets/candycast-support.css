@@ -479,7 +479,7 @@
   object-fit: contain;
 }
 
-.cc-support-message-body { max-width: 78%; }
+.cc-support-message-body { position: relative; max-width: 78%; }
 .cc-support-message-name { margin: 0 0 4px 4px; color: #9295a0; font-size: 11px; }
 .cc-support-message-bubble {
   min-width: 34px;
@@ -513,6 +513,56 @@
   margin-top: 7px;
   border-radius: 6px;
   object-fit: contain;
+}
+
+.cc-support-message-bubble.is-deleted {
+  color: #8f929b;
+  font-style: italic;
+}
+
+.cc-support-message-edited {
+  margin-left: 4px;
+  color: #b2b4bc;
+  font-size: 9px;
+}
+
+.cc-support-message-more {
+  position: absolute;
+  left: -44px;
+  bottom: -8px;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #858994;
+  cursor: pointer;
+  font-size: 20px;
+}
+
+.cc-support-message-more:hover,
+.cc-support-message-more:focus-visible { background: #eceef2; }
+.cc-support-message-actions {
+  position: absolute;
+  z-index: 4;
+  right: -2px;
+  bottom: 38px;
+  padding: 4px;
+  border: 1px solid #dbdde3;
+  border-radius: 5px;
+  background: #fff;
+  box-shadow: 0 5px 16px rgba(26, 29, 38, .16);
+}
+.cc-support-message-actions[hidden] { display: none !important; }
+.cc-support-message-actions button {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 0;
+  background: #fff;
+  color: #c72d4d;
+  cursor: pointer;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .cc-support-composer {

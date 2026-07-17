@@ -19,6 +19,7 @@
     var attachButton = form.querySelector(".cc-chat-attach");
     var sendButton = form.querySelector(".cc-chat-send");
     var preview = form.querySelector(".cc-chat-attachment-preview");
+    var messageList = document.querySelector(".cc-chat-messages");
     var pendingAttachment = null;
     var attachmentBusy = false;
     var attachmentVersion = 0;
@@ -135,6 +136,42 @@
         setBusy();
       });
     });
+
+    if (messageList) {
+      messageList.addEventListener("click", function (event) {
+        var action = event.target.closest("[data-cc-chat-action]");
+        if (!action) return;
+        var name = action.dataset.ccChatAction;
+        if (name === "message-menu") {
+          var menu = action.nextElementSibling;
+          messageList.querySelectorAll(".cc-chat-message-actions").forEach(function (item) {
+            if (item !== menu) item.hidden = true;
+          });
+          if (menu) menu.hidden = !menu.hidden;
+          return;
+        }
+        if (name !== "delete-message") return;
+        if (!window.confirm("이 메시지를 삭제할까요?")) return;
+        action.disabled = true;
+        fetch("/api/member/chat/messages/delete", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({
+            id: action.dataset.messageId,
+            influencerId: form.dataset.influencerId
+          })
+        }).then(async function (response) {
+          var payload = {};
+          try { payload = await response.json(); } catch (_error) { payload = {}; }
+          if (!response.ok) throw new Error(payload.error || "메시지를 삭제하지 못했습니다.");
+          window.location.reload();
+        }).catch(function (error) {
+          window.alert(error.message);
+          action.disabled = false;
+        });
+      });
+    }
   }
 
   function closeSupport() {

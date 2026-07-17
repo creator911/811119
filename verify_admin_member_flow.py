@@ -207,6 +207,54 @@ def main() -> int:
     status, _ = update_member()
     assert_status(status, 200, "member unfreeze")
 
+    status, _, transaction_body = post_form(
+        member,
+        "/bbs/formdata.php",
+        {
+            "req": "export",
+            "name": "검증회원",
+            "bank": "기업은행",
+            "bankno": "1234567890",
+            "price": 100,
+        },
+    )
+    assert_status(status, 200, "member exchange request")
+    transaction_id = int(transaction_body.strip())
+    assert transaction_id > 0
+
+    def member_candy() -> int:
+        member_status, member_payload = api(admin, "GET", f"/api/admin/members?q={member_id}")
+        assert_status(member_status, 200, "member candy lookup")
+        return int(next(item for item in member_payload["members"] if item["id"] == member_id)["candy"])
+
+    assert member_candy() == 1134
+    status, _, exchange_admin = get(admin, "/admin/export_list.php")
+    assert_status(status, 200, "exchange admin page")
+    assert "admin.js" in exchange_admin
+    assert "/admin/transaction_status.php" in exchange_admin
+    assert f'value="{transaction_id}"' in exchange_admin
+    token_status, _, token_body = post_form(admin, "/admin/ajax.token.php", {})
+    assert_status(token_status, 200, "admin csrf compatibility token")
+    assert json.loads(token_body).get("token")
+
+    def set_exchange_status(value: str) -> None:
+        exchange_status, exchange_url, _ = post_form(
+            admin,
+            "/admin/transaction_status.php",
+            {"id": transaction_id, "kind": "export", "status": value},
+        )
+        assert_status(exchange_status, 200, f"exchange status {value}")
+        assert exchange_url.endswith("/admin/export_list.php")
+
+    set_exchange_status("동결")
+    assert member_candy() == 1234
+    set_exchange_status("취소")
+    assert member_candy() == 1234
+    set_exchange_status("승인")
+    assert member_candy() == 1134
+    set_exchange_status("취소")
+    assert member_candy() == 1234
+
     status, influencer_payload = api(admin, "GET", "/api/admin/influencers")
     assert_status(status, 200, "influencer list")
     influencers = influencer_payload.get("influencers", [])
@@ -332,6 +380,193 @@ def main() -> int:
         (member_id, second_influencer["id"]),
     }.issubset(admin_room_keys)
 
+    edited_private_message = f"관리자 수정 개인채팅 {suffix}"
+    status, edited = api(
+        admin,
+        "POST",
+        "/api/admin/member-chat/messages/edit",
+        {
+            "id": first_send["id"],
+            "memberId": member_id,
+            "influencerId": influencer["id"],
+            "message": edited_private_message,
+        },
+    )
+    assert_status(status, 200, "admin private message edit")
+    assert edited.get("editedAt")
+
+    status, denied_delete = api(
+        member,
+        "POST",
+        "/api/member/chat/messages/delete",
+        {"id": admin_send["id"], "influencerId": influencer["id"]},
+    )
+    assert_status(status, 404, "member cannot delete influencer message")
+    assert "찾을 수 없습니다" in denied_delete.get("error", "")
+
+    status, _ = api(
+        member,
+        "POST",
+        "/api/member/chat/messages/delete",
+        {"id": first_send["id"], "influencerId": influencer["id"]},
+    )
+    assert_status(status, 200, "member private message soft delete")
+    status, conversation = api(
+        admin,
+        "GET",
+        f"/api/admin/member-chat/messages?member_id={member_id}&influencer_id={influencer['id']}",
+    )
+    assert_status(status, 200, "private soft delete visible to admin")
+    deleted_private = next(item for item in conversation["messages"] if item["id"] == first_send["id"])
+    assert deleted_private["deletedByMember"] is True
+    assert deleted_private["message"] == "" and deleted_private["attachment"] is None
+
+    status, _ = api(
+        admin,
+        "POST",
+        "/api/admin/member-chat/messages/delete",
+        {
+            "id": first_send["id"],
+            "memberId": member_id,
+            "influencerId": influencer["id"],
+        },
+    )
+    assert_status(status, 200, "admin private message hard delete")
+
+    edited_admin_message = f"관리자 BJ 수정 완료 {suffix}"
+    status, _ = api(
+        admin,
+        "POST",
+        "/api/admin/member-chat/messages/edit",
+        {
+            "id": admin_send["id"],
+            "memberId": member_id,
+            "influencerId": influencer["id"],
+            "message": edited_admin_message,
+        },
+    )
+    assert_status(status, 200, "admin influencer message edit")
+    status, latest_admin_send = api(
+        admin,
+        "POST",
+        "/api/admin/member-chat/messages",
+        {
+            "memberId": member_id,
+            "influencerId": influencer["id"],
+            "message": f"미리보기 수정 전 {suffix}",
+        },
+    )
+    assert_status(status, 201, "latest influencer message send")
+    status, _ = api(
+        admin,
+        "POST",
+        "/api/admin/member-chat/messages/edit",
+        {
+            "id": latest_admin_send["id"],
+            "memberId": member_id,
+            "influencerId": influencer["id"],
+            "message": edited_admin_message,
+        },
+    )
+    assert_status(status, 200, "latest influencer message edit")
+    status, room_after_edit = api(member, "GET", "/api/member/chats")
+    assert_status(status, 200, "private room preview after edit")
+    edited_room = next(room for room in room_after_edit["rooms"] if room["id"] == influencer["id"])
+    assert edited_room["lastMessage"] == edited_admin_message
+
+    support_message = f"고객센터 회원 메시지 {suffix}"
+    status, support_send = api(
+        member,
+        "POST",
+        "/api/support/messages",
+        {"message": support_message},
+    )
+    assert_status(status, 200, "member support message send")
+    status, member_support = api(member, "GET", "/api/support/room?mark_read=1")
+    assert_status(status, 200, "member support room")
+    support_room_id = member_support["room"]["id"]
+    assert any(item["id"] == support_send["id"] for item in member_support["messages"])
+
+    edited_support_message = f"관리자 수정 고객센터 {suffix}"
+    status, support_edit = api(
+        admin,
+        "POST",
+        f"/api/admin/support/rooms/{support_room_id}/edit-message",
+        {"id": support_send["id"], "message": edited_support_message},
+    )
+    assert_status(status, 200, "admin support message edit")
+    assert support_edit.get("editedAt")
+    status, member_support = api(member, "GET", "/api/support/room?mark_read=1")
+    edited_support = next(item for item in member_support["messages"] if item["id"] == support_send["id"])
+    assert edited_support["message"] == edited_support_message and edited_support["editedAt"]
+
+    status, _ = api(
+        member,
+        "POST",
+        "/api/support/messages/delete",
+        {"id": support_send["id"]},
+    )
+    assert_status(status, 200, "member support message soft delete")
+    status, admin_support = api(admin, "GET", f"/api/admin/support/rooms/{support_room_id}")
+    assert_status(status, 200, "admin support room after member delete")
+    deleted_support = next(item for item in admin_support["messages"] if item["id"] == support_send["id"])
+    assert deleted_support["deletedByMember"] is True
+    assert deleted_support["message"] == "" and deleted_support["attachment"] is None
+
+    status, _ = api(
+        admin,
+        "POST",
+        f"/api/admin/support/rooms/{support_room_id}/delete-message",
+        {"id": support_send["id"]},
+    )
+    assert_status(status, 200, "admin support message hard delete")
+
+    staff_support_message = f"상담사 답변 수정삭제 {suffix}"
+    status, staff_support_send = api(
+        admin,
+        "POST",
+        f"/api/admin/support/rooms/{support_room_id}/messages",
+        {"message": staff_support_message},
+    )
+    assert_status(status, 200, "admin support message send")
+    status, _ = api(
+        member,
+        "POST",
+        "/api/support/messages/delete",
+        {"id": staff_support_send["id"]},
+    )
+    assert_status(status, 404, "member cannot delete staff support message")
+    status, _ = api(
+        admin,
+        "POST",
+        f"/api/admin/support/rooms/{support_room_id}/edit-message",
+        {"id": staff_support_send["id"], "message": f"상담사 수정 완료 {suffix}"},
+    )
+    assert_status(status, 200, "admin staff support message edit")
+    status, _ = api(
+        admin,
+        "POST",
+        f"/api/admin/support/rooms/{support_room_id}/delete-message",
+        {"id": staff_support_send["id"]},
+    )
+    assert_status(status, 200, "admin staff support message delete")
+
+    anonymous = opener()
+    status, _ = api(
+        anonymous,
+        "POST",
+        "/api/member/chat/messages/delete",
+        {"id": 1, "influencerId": influencer["id"]},
+    )
+    assert_status(status, 401, "anonymous private message delete")
+    status, _ = api(
+        anonymous,
+        "POST",
+        f"/api/admin/support/rooms/{support_room_id}/delete-message",
+        {"id": 1},
+    )
+    assert_status(status, 403, "anonymous admin support delete")
+
     status, members = api(admin, "GET", f"/api/admin/members?q={member_id}")
     assert_status(status, 200, "final member state")
     row = next(item for item in members["members"] if item["id"] == member_id)
@@ -351,7 +586,7 @@ def main() -> int:
                 "influencer": influencer["id"],
                 "secondInfluencer": second_influencer["id"],
                 "finalCandy": row["candy"],
-                "checks": 54,
+                "checks": 77,
             },
             ensure_ascii=False,
         )

@@ -307,7 +307,7 @@
 
 .cc-support-admin-message { display: flex; margin: 0 0 12px; }
 .cc-support-admin-message.staff { justify-content: flex-end; }
-.cc-support-admin-message > div { max-width: 76%; }
+.cc-support-admin-message > div { position: relative; max-width: 76%; }
 .cc-support-admin-message b { display: block; margin: 0 0 4px 4px; color: #808998; font-size: 11px; }
 .cc-support-admin-message p {
   margin: 0;
@@ -324,6 +324,49 @@
 .cc-support-admin-message.staff p { background: #315ec9; color: #fff; }
 .cc-support-admin-message time { display: block; margin-top: 3px; color: #9aa1ad; font-size: 10px; text-align: right; }
 .cc-support-admin-message img { display: block; width: min(230px, 100%); max-height: 230px; margin-top: 7px; border-radius: 5px; object-fit: contain; }
+.cc-support-admin-message.is-deleted p { color: #858d99; font-style: italic; }
+.cc-support-admin-message-tools {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-top: 6px;
+}
+.cc-support-admin-message-tools button,
+.cc-support-admin-inline-editor button {
+  min-height: 27px;
+  padding: 0 8px;
+  border: 1px solid #cbd1da;
+  border-radius: 3px;
+  background: #fff;
+  color: #505a69;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+}
+.cc-support-admin-message-tools button:last-child { color: #c72d49; }
+.cc-support-admin-inline-editor { margin-top: 7px; }
+.cc-support-admin-inline-editor[hidden] { display: none !important; }
+.cc-support-admin-inline-editor textarea {
+  width: 100%;
+  min-width: 220px;
+  min-height: 58px;
+  resize: vertical;
+  border: 1px solid #aeb6c2;
+  border-radius: 4px;
+  padding: 8px;
+  font: inherit;
+}
+.cc-support-admin-inline-editor > span {
+  display: flex;
+  justify-content: flex-end;
+  gap: 5px;
+  margin-top: 5px;
+}
+.cc-support-admin-edited {
+  margin-left: 5px;
+  color: #a5abb5;
+  font-size: 9px;
+}
 
 .cc-support-staff-send {
   position: relative;

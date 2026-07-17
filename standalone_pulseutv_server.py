@@ -924,7 +924,11 @@ def init_db(db_path: Path, backup_dir: Path | None, site_dir: Path | None = None
                 dedupe_key TEXT NOT NULL DEFAULT '',
                 created_minute TEXT NOT NULL DEFAULT '',
                 created_at TEXT NOT NULL,
-                read_at TEXT NOT NULL DEFAULT ''
+                read_at TEXT NOT NULL DEFAULT '',
+                edited_at TEXT NOT NULL DEFAULT '',
+                edited_by TEXT NOT NULL DEFAULT '',
+                deleted_by_member INTEGER NOT NULL DEFAULT 0,
+                deleted_at TEXT NOT NULL DEFAULT ''
             )"""
         )
         chat_message_columns = {
@@ -939,6 +943,10 @@ def init_db(db_path: Path, backup_dir: Path | None, site_dir: Path | None = None
             "dedupe_key": "TEXT NOT NULL DEFAULT ''",
             "created_minute": "TEXT NOT NULL DEFAULT ''",
             "read_at": "TEXT NOT NULL DEFAULT ''",
+            "edited_at": "TEXT NOT NULL DEFAULT ''",
+            "edited_by": "TEXT NOT NULL DEFAULT ''",
+            "deleted_by_member": "INTEGER NOT NULL DEFAULT 0",
+            "deleted_at": "TEXT NOT NULL DEFAULT ''",
         }.items():
             if column not in chat_message_columns:
                 db.execute(f"ALTER TABLE chat_messages ADD COLUMN {column} {definition}")
@@ -1041,9 +1049,24 @@ def init_db(db_path: Path, backup_dir: Path | None, site_dir: Path | None = None
                 attachment_data TEXT NOT NULL DEFAULT '',
                 created_at TEXT NOT NULL,
                 read_at TEXT NOT NULL DEFAULT '',
+                edited_at TEXT NOT NULL DEFAULT '',
+                edited_by TEXT NOT NULL DEFAULT '',
+                deleted_by_member INTEGER NOT NULL DEFAULT 0,
+                deleted_at TEXT NOT NULL DEFAULT '',
                 FOREIGN KEY(room_id) REFERENCES support_rooms(id) ON DELETE CASCADE
             )"""
         )
+        support_message_columns = {
+            row[1] for row in db.execute("PRAGMA table_info(support_messages)").fetchall()
+        }
+        for column, definition in {
+            "edited_at": "TEXT NOT NULL DEFAULT ''",
+            "edited_by": "TEXT NOT NULL DEFAULT ''",
+            "deleted_by_member": "INTEGER NOT NULL DEFAULT 0",
+            "deleted_at": "TEXT NOT NULL DEFAULT ''",
+        }.items():
+            if column not in support_message_columns:
+                db.execute(f"ALTER TABLE support_messages ADD COLUMN {column} {definition}")
         db.execute(
             "CREATE INDEX IF NOT EXISTS support_messages_room_id_idx ON support_messages(room_id,id)"
         )
@@ -1883,7 +1906,7 @@ def render_dynamic_page(
             "link",
             id="candycast-support-style",
             rel="stylesheet",
-            href="/assets/local/candycast-support.css",
+            href="/assets/local/candycast-support.css?v=20260717-chat3",
         )
         soup.head.append(support_style)
         changed = True
@@ -1896,7 +1919,7 @@ def render_dynamic_page(
             "link",
             id="candycast-member-chat-style",
             rel="stylesheet",
-            href="/assets/local/candycast-member-chat.css",
+            href="/assets/local/candycast-member-chat.css?v=20260717-chat3",
         )
         soup.head.append(member_chat_style)
         changed = True
@@ -1946,7 +1969,7 @@ def render_dynamic_page(
         soup.body.append(image_script)
         support_script = soup.new_tag(
             "script",
-            src="/assets/local/candycast-support.js",
+            src="/assets/local/candycast-support.js?v=20260717-chat3",
             defer=True,
         )
         soup.body.append(support_script)
@@ -1960,7 +1983,7 @@ def render_dynamic_page(
         member_chat_script = soup.new_tag(
             "script",
             id="candycast-member-chat-script",
-            src="/assets/local/candycast-member-chat.js?v=20260717-chat2",
+            src="/assets/local/candycast-member-chat.js?v=20260717-chat3",
             defer=True,
         )
         soup.body.append(member_chat_script)
@@ -2121,7 +2144,7 @@ def normalize_admin_html(text: str) -> str:
             "link",
             id="candycast-admin-support-style",
             rel="stylesheet",
-            href="/assets/local/candycast-admin-support.css",
+            href="/assets/local/candycast-admin-support.css?v=20260717-chat3",
         )
         soup.head.append(support_style)
 
@@ -2345,8 +2368,9 @@ def normalize_support_attachment(value: object) -> tuple[str, str, str]:
 
 
 def support_message_payload(row: sqlite3.Row) -> dict[str, object]:
+    deleted_by_member = bool(row["deleted_by_member"])
     attachment = None
-    if row["attachment_data"]:
+    if row["attachment_data"] and not deleted_by_member:
         attachment = {
             "name": row["attachment_name"],
             "type": row["attachment_type"],
@@ -2356,15 +2380,18 @@ def support_message_payload(row: sqlite3.Row) -> dict[str, object]:
         "id": row["id"],
         "senderType": row["sender_type"],
         "senderId": row["sender_id"],
-        "message": row["message"],
+        "message": "" if deleted_by_member else row["message"],
         "attachment": attachment,
         "createdAt": row["created_at"],
+        "editedAt": row["edited_at"],
+        "deletedByMember": deleted_by_member,
     }
 
 
 def member_chat_message_payload(row: sqlite3.Row, member_id: str) -> dict[str, object]:
+    deleted_by_member = bool(row["deleted_by_member"])
     attachment = None
-    if row["attachment_data"]:
+    if row["attachment_data"] and not deleted_by_member:
         attachment = {
             "name": row["attachment_name"],
             "type": row["attachment_type"],
@@ -2373,10 +2400,12 @@ def member_chat_message_payload(row: sqlite3.Row, member_id: str) -> dict[str, o
     return {
         "id": int(row["id"]),
         "sender": "member" if row["sender_id"] == member_id else "influencer",
-        "message": row["message"],
+        "message": "" if deleted_by_member else row["message"],
         "attachment": attachment,
         "createdAt": row["created_at"],
         "readAt": row["read_at"],
+        "editedAt": row["edited_at"],
+        "deletedByMember": deleted_by_member,
     }
 
 
@@ -2769,9 +2798,10 @@ class StandaloneHandler(BaseHTTPRequestHandler):
                               OR r.influencer_id LIKE ? OR COALESCE((
                                   SELECT CASE WHEN m.message<>'' THEN m.message ELSE '[이미지]' END
                                   FROM chat_messages m
-                                  WHERE m.member_id=r.member_id
-                                    AND m.influencer_id=r.influencer_id
-                                  ORDER BY m.id DESC LIMIT 1
+                                   WHERE m.member_id=r.member_id
+                                     AND m.influencer_id=r.influencer_id
+                                     AND m.deleted_by_member=0
+                                   ORDER BY m.id DESC LIMIT 1
                               ),'') LIKE ?)"""
             params.extend([like, like, like, like, like])
         with self.support_db() as db:
@@ -2781,12 +2811,14 @@ class StandaloneHandler(BaseHTTPRequestHandler):
                              FROM chat_messages m
                              WHERE m.member_id=r.member_id
                                AND m.influencer_id=r.influencer_id
+                               AND m.deleted_by_member=0
                              ORDER BY m.id DESC LIMIT 1),'') AS last_message,
                            (SELECT COUNT(*) FROM chat_messages m
                              WHERE m.member_id=r.member_id
-                               AND m.influencer_id=r.influencer_id
-                               AND m.sender_id=r.member_id
-                               AND m.read_at='') AS unread
+                                AND m.influencer_id=r.influencer_id
+                                AND m.sender_id=r.member_id
+                                AND m.deleted_by_member=0
+                                AND m.read_at='') AS unread
                     FROM member_chat_rooms r JOIN users u ON u.id=r.member_id
                     WHERE r.influencer_id NOT LIKE 'live:%' {where}
                     ORDER BY r.last_at DESC,r.member_id ASC LIMIT 500""",
@@ -2834,7 +2866,7 @@ class StandaloneHandler(BaseHTTPRequestHandler):
             rows = db.execute(
                 """SELECT id,sender_id,receiver_id,message,
                           attachment_name,attachment_type,attachment_data,
-                          created_at,read_at
+                          created_at,read_at,edited_at,deleted_by_member
                    FROM chat_messages
                    WHERE member_id=? AND influencer_id=?
                    ORDER BY id ASC LIMIT 1000""",
@@ -3209,6 +3241,124 @@ class StandaloneHandler(BaseHTTPRequestHandler):
             db.commit()
         return payload
 
+    @staticmethod
+    def refresh_member_chat_room(
+        db: sqlite3.Connection,
+        member_id: str,
+        influencer_id: str,
+    ) -> None:
+        room = db.execute(
+            """SELECT created_at FROM member_chat_rooms
+               WHERE member_id=? AND influencer_id=?""",
+            (member_id, influencer_id),
+        ).fetchone()
+        if room is None:
+            return
+        latest = db.execute(
+            """SELECT created_at FROM chat_messages
+               WHERE member_id=? AND influencer_id=? AND deleted_by_member=0
+               ORDER BY id DESC LIMIT 1""",
+            (member_id, influencer_id),
+        ).fetchone()
+        db.execute(
+            """UPDATE member_chat_rooms SET last_at=?
+               WHERE member_id=? AND influencer_id=?""",
+            (
+                str(latest["created_at"] if latest else room["created_at"]),
+                member_id,
+                influencer_id,
+            ),
+        )
+
+    @staticmethod
+    def message_id_from_data(data: dict[str, object]) -> int:
+        try:
+            message_id = int(data.get("id", 0))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("메시지 정보가 올바르지 않습니다.") from exc
+        if message_id <= 0:
+            raise ValueError("메시지 정보가 올바르지 않습니다.")
+        return message_id
+
+    def delete_member_chat_message(
+        self,
+        member_id: str,
+        data: dict[str, object],
+    ) -> dict[str, object]:
+        message_id = self.message_id_from_data(data)
+        influencer_id = str(data.get("influencerId", "")).strip()[:100]
+        if not influencer_id:
+            raise ValueError("BJ 정보가 올바르지 않습니다.")
+        deleted_at = now_text()
+        with self.support_db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute(
+                """SELECT id FROM chat_messages
+                   WHERE id=? AND member_id=? AND influencer_id=?
+                     AND sender_id=? AND deleted_by_member=0""",
+                (message_id, member_id, influencer_id, member_id),
+            ).fetchone()
+            if row is None:
+                raise LookupError("삭제할 메시지를 찾을 수 없습니다.")
+            db.execute(
+                """UPDATE chat_messages
+                   SET message='',attachment_name='',attachment_type='',attachment_data='',
+                       dedupe_key='',deleted_by_member=1,deleted_at=?
+                   WHERE id=?""",
+                (deleted_at, message_id),
+            )
+            self.refresh_member_chat_room(db, member_id, influencer_id)
+            db.commit()
+        return {"ok": True, "deletedAt": deleted_at}
+
+    def edit_admin_member_chat_message(self, data: dict[str, object]) -> dict[str, object]:
+        message_id = self.message_id_from_data(data)
+        member_id = str(data.get("memberId", "")).strip()[:100]
+        influencer_id = str(data.get("influencerId", "")).strip()[:100]
+        message = str(data.get("message", "")).strip()[:1000]
+        if not member_id or not influencer_id:
+            raise ValueError("회원과 BJ 정보가 올바르지 않습니다.")
+        if not message:
+            raise ValueError("메시지를 입력해 주세요.")
+        edited_at = now_text()
+        with self.support_db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute(
+                """SELECT id FROM chat_messages
+                   WHERE id=? AND member_id=? AND influencer_id=?
+                     AND deleted_by_member=0""",
+                (message_id, member_id, influencer_id),
+            ).fetchone()
+            if row is None:
+                raise LookupError("수정할 메시지를 찾을 수 없습니다.")
+            db.execute(
+                """UPDATE chat_messages SET message=?,edited_at=?,edited_by=? WHERE id=?""",
+                (message, edited_at, ADMIN_ID, message_id),
+            )
+            self.refresh_member_chat_room(db, member_id, influencer_id)
+            db.commit()
+        return {"ok": True, "editedAt": edited_at}
+
+    def delete_admin_member_chat_message(self, data: dict[str, object]) -> dict[str, object]:
+        message_id = self.message_id_from_data(data)
+        member_id = str(data.get("memberId", "")).strip()[:100]
+        influencer_id = str(data.get("influencerId", "")).strip()[:100]
+        if not member_id or not influencer_id:
+            raise ValueError("회원과 BJ 정보가 올바르지 않습니다.")
+        with self.support_db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute(
+                """SELECT id FROM chat_messages
+                   WHERE id=? AND member_id=? AND influencer_id=?""",
+                (message_id, member_id, influencer_id),
+            ).fetchone()
+            if row is None:
+                raise LookupError("삭제할 메시지를 찾을 수 없습니다.")
+            db.execute("DELETE FROM chat_messages WHERE id=?", (message_id,))
+            self.refresh_member_chat_room(db, member_id, influencer_id)
+            db.commit()
+        return {"ok": True}
+
     def member_chat_rooms_payload(self, member_id: str) -> dict[str, object]:
         with self.support_db() as db:
             rows = db.execute(
@@ -3218,20 +3368,23 @@ class StandaloneHandler(BaseHTTPRequestHandler):
                              FROM chat_messages m
                              WHERE m.member_id=r.member_id
                                AND m.influencer_id=r.influencer_id
+                               AND m.deleted_by_member=0
                              ORDER BY m.id DESC LIMIT 1
                           ),'') AS last_message,
                           COALESCE((
                              SELECT m.created_at FROM chat_messages m
                              WHERE m.member_id=r.member_id
                                AND m.influencer_id=r.influencer_id
+                               AND m.deleted_by_member=0
                              ORDER BY m.id DESC LIMIT 1
                           ),r.last_at) AS updated_at,
                           (SELECT COUNT(*) FROM chat_messages m
                            WHERE m.member_id=r.member_id
                              AND m.influencer_id=r.influencer_id
-                             AND m.sender_id=r.influencer_id
-                              AND m.receiver_id=r.member_id
-                              AND m.read_at='') AS unread
+                              AND m.sender_id=r.influencer_id
+                               AND m.receiver_id=r.member_id
+                               AND m.deleted_by_member=0
+                               AND m.read_at='') AS unread
                    FROM member_chat_rooms r
                    WHERE r.member_id=? AND r.influencer_id NOT LIKE 'live:%'
                    ORDER BY updated_at DESC,r.influencer_id ASC
@@ -3300,7 +3453,7 @@ class StandaloneHandler(BaseHTTPRequestHandler):
     def support_messages(self, db: sqlite3.Connection, room_id: int) -> list[dict[str, object]]:
         rows = db.execute(
             """SELECT id,sender_type,sender_id,message,attachment_name,attachment_type,
-                      attachment_data,created_at
+                      attachment_data,created_at,edited_at,deleted_by_member
                FROM support_messages WHERE room_id=? ORDER BY id ASC LIMIT 1000""",
             (room_id,),
         ).fetchall()
@@ -3445,6 +3598,126 @@ class StandaloneHandler(BaseHTTPRequestHandler):
             db.commit()
             return int(cursor.lastrowid), created_at
 
+    @staticmethod
+    def refresh_support_room(db: sqlite3.Connection, room_id: int) -> None:
+        room = db.execute(
+            "SELECT created_at FROM support_rooms WHERE id=?",
+            (room_id,),
+        ).fetchone()
+        if room is None:
+            return
+        latest = db.execute(
+            """SELECT message,attachment_data,created_at FROM support_messages
+               WHERE room_id=? AND deleted_by_member=0
+               ORDER BY id DESC LIMIT 1""",
+            (room_id,),
+        ).fetchone()
+        if latest is None:
+            preview = ""
+            last_at = str(room["created_at"])
+        else:
+            preview = str(latest["message"] or "").replace("\n", " ")
+            if not preview and latest["attachment_data"]:
+                preview = "[이미지]"
+            last_at = str(latest["created_at"])
+        staff_unread = int(
+            db.execute(
+                """SELECT COUNT(*) FROM support_messages
+                   WHERE room_id=? AND sender_type='member'
+                     AND read_at='' AND deleted_by_member=0""",
+                (room_id,),
+            ).fetchone()[0]
+        )
+        member_unread = int(
+            db.execute(
+                """SELECT COUNT(*) FROM support_messages
+                   WHERE room_id=? AND sender_type='staff'
+                     AND read_at='' AND deleted_by_member=0""",
+                (room_id,),
+            ).fetchone()[0]
+        )
+        db.execute(
+            """UPDATE support_rooms
+               SET last_message=?,last_at=?,updated_at=?,staff_unread=?,member_unread=?
+               WHERE id=?""",
+            (preview, last_at, now_text(), staff_unread, member_unread, room_id),
+        )
+
+    def delete_member_support_message(
+        self,
+        member_id: str,
+        data: dict[str, object],
+    ) -> dict[str, object]:
+        message_id = self.message_id_from_data(data)
+        deleted_at = now_text()
+        with self.support_db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute(
+                """SELECT m.id,m.room_id FROM support_messages m
+                   JOIN support_rooms r ON r.id=m.room_id
+                   WHERE m.id=? AND r.member_id=? AND m.sender_type='member'
+                     AND m.sender_id=? AND m.deleted_by_member=0""",
+                (message_id, member_id, member_id),
+            ).fetchone()
+            if row is None:
+                raise LookupError("삭제할 메시지를 찾을 수 없습니다.")
+            room_id = int(row["room_id"])
+            db.execute(
+                """UPDATE support_messages
+                   SET message='',attachment_name='',attachment_type='',attachment_data='',
+                       deleted_by_member=1,deleted_at=? WHERE id=?""",
+                (deleted_at, message_id),
+            )
+            self.refresh_support_room(db, room_id)
+            db.commit()
+        return {"ok": True, "deletedAt": deleted_at}
+
+    def edit_admin_support_message(
+        self,
+        room_id: int,
+        data: dict[str, object],
+    ) -> dict[str, object]:
+        message_id = self.message_id_from_data(data)
+        message = str(data.get("message", "")).strip()[:SUPPORT_MAX_MESSAGE_LENGTH]
+        if not message:
+            raise ValueError("메시지를 입력해 주세요.")
+        edited_at = now_text()
+        with self.support_db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute(
+                """SELECT id FROM support_messages
+                   WHERE id=? AND room_id=? AND deleted_by_member=0""",
+                (message_id, room_id),
+            ).fetchone()
+            if row is None:
+                raise LookupError("수정할 메시지를 찾을 수 없습니다.")
+            db.execute(
+                """UPDATE support_messages SET message=?,edited_at=?,edited_by=? WHERE id=?""",
+                (message, edited_at, ADMIN_ID, message_id),
+            )
+            self.refresh_support_room(db, room_id)
+            db.commit()
+        return {"ok": True, "editedAt": edited_at}
+
+    def delete_admin_support_message(
+        self,
+        room_id: int,
+        data: dict[str, object],
+    ) -> dict[str, object]:
+        message_id = self.message_id_from_data(data)
+        with self.support_db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute(
+                "SELECT id FROM support_messages WHERE id=? AND room_id=?",
+                (message_id, room_id),
+            ).fetchone()
+            if row is None:
+                raise LookupError("삭제할 메시지를 찾을 수 없습니다.")
+            db.execute("DELETE FROM support_messages WHERE id=?", (message_id,))
+            self.refresh_support_room(db, room_id)
+            db.commit()
+        return {"ok": True}
+
     def render_support_admin(self) -> bytes:
         try:
             from bs4 import BeautifulSoup
@@ -3475,7 +3748,7 @@ class StandaloneHandler(BaseHTTPRequestHandler):
         )
         script = soup.new_tag(
             "script",
-            src="/assets/local/candycast-admin-support.js",
+            src="/assets/local/candycast-admin-support.js?v=20260717-chat3",
         )
         if soup.body is not None:
             soup.body.append(image_script)
@@ -3515,12 +3788,12 @@ class StandaloneHandler(BaseHTTPRequestHandler):
         for child in list(fragment.contents):
             container.append(child)
         if soup.head is not None:
-            style = soup.new_tag("link", rel="stylesheet", href=f"{stylesheet}?v=20260717-chat2")
+            style = soup.new_tag("link", rel="stylesheet", href=f"{stylesheet}?v=20260717-chat3")
             soup.head.append(style)
         if soup.body is not None:
             for dependency in dependency_scripts:
                 soup.body.append(soup.new_tag("script", src=dependency))
-            application_script = soup.new_tag("script", src=f"{script}?v=20260717-chat2")
+            application_script = soup.new_tag("script", src=f"{script}?v=20260717-chat3")
             soup.body.append(application_script)
         return str(soup).encode("utf-8")
 
@@ -3966,6 +4239,22 @@ class StandaloneHandler(BaseHTTPRequestHandler):
             except LookupError as exc:
                 self.send_json({"error": str(exc)}, HTTPStatus.NOT_FOUND)
             return
+        if path == "/api/member/chat/messages/delete":
+            current_user = self.current_user()
+            if not current_user or current_user == ADMIN_ID:
+                self.send_json({"error": "로그인이 필요합니다."}, HTTPStatus.UNAUTHORIZED)
+                return
+            restriction = self.member_action_restriction(current_user)
+            if restriction:
+                self.send_json({"error": restriction}, HTTPStatus.LOCKED)
+                return
+            try:
+                self.send_json(self.delete_member_chat_message(current_user, data))
+            except ValueError as exc:
+                self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+            except LookupError as exc:
+                self.send_json({"error": str(exc)}, HTTPStatus.NOT_FOUND)
+            return
         if path.startswith("/api/admin/") and self.current_user() != ADMIN_ID:
             self.send_json({"error": "관리자 로그인이 필요합니다."}, HTTPStatus.FORBIDDEN)
             return
@@ -4009,6 +4298,22 @@ class StandaloneHandler(BaseHTTPRequestHandler):
             except LookupError as exc:
                 self.send_json({"error": str(exc)}, HTTPStatus.NOT_FOUND)
             return
+        if path in {
+            "/api/admin/member-chat/messages/edit",
+            "/api/admin/member-chat/messages/delete",
+        }:
+            try:
+                payload = (
+                    self.edit_admin_member_chat_message(data)
+                    if path.endswith("/edit")
+                    else self.delete_admin_member_chat_message(data)
+                )
+                self.send_json(payload)
+            except ValueError as exc:
+                self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+            except LookupError as exc:
+                self.send_json({"error": str(exc)}, HTTPStatus.NOT_FOUND)
+            return
         if path == "/api/support/messages":
             current_user = self.current_user()
             if not current_user:
@@ -4029,6 +4334,22 @@ class StandaloneHandler(BaseHTTPRequestHandler):
                 return
             self.send_json({"ok": True, "id": message_id, "createdAt": created_at})
             return
+        if path == "/api/support/messages/delete":
+            current_user = self.current_user()
+            if not current_user or current_user == ADMIN_ID:
+                self.send_json({"error": "로그인이 필요합니다."}, HTTPStatus.UNAUTHORIZED)
+                return
+            restriction = self.member_action_restriction(current_user)
+            if restriction:
+                self.send_json({"error": restriction}, HTTPStatus.LOCKED)
+                return
+            try:
+                self.send_json(self.delete_member_support_message(current_user, data))
+            except ValueError as exc:
+                self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+            except LookupError as exc:
+                self.send_json({"error": str(exc)}, HTTPStatus.NOT_FOUND)
+            return
         if path == "/api/support/read":
             current_user = self.current_user()
             if not current_user:
@@ -4038,7 +4359,7 @@ class StandaloneHandler(BaseHTTPRequestHandler):
             self.send_json({"ok": True})
             return
         support_action_match = re.fullmatch(
-            r"/api/admin/support/rooms/(\d+)/(messages|queue|close|clear)",
+            r"/api/admin/support/rooms/(\d+)/(messages|edit-message|delete-message|queue|close|clear)",
             path,
         )
         if support_action_match:
@@ -4056,6 +4377,12 @@ class StandaloneHandler(BaseHTTPRequestHandler):
                         data,
                     )
                     self.send_json({"ok": True, "id": message_id, "createdAt": created_at})
+                    return
+                if action == "edit-message":
+                    self.send_json(self.edit_admin_support_message(room_id, data))
+                    return
+                if action == "delete-message":
+                    self.send_json(self.delete_admin_support_message(room_id, data))
                     return
                 with self.support_db() as db:
                     room = db.execute("SELECT id FROM support_rooms WHERE id=?", (room_id,)).fetchone()
@@ -4191,6 +4518,12 @@ class StandaloneHandler(BaseHTTPRequestHandler):
                     )
                     db.commit()
             self.send_redirect(f"/live.php?live_id={quote(live_id)}")
+            return
+        if path == f"{ADMIN_PREFIX}/ajax.token.php":
+            if self.current_user() != ADMIN_ID:
+                self.send_json({"error": "관리자 로그인이 필요합니다."}, HTTPStatus.FORBIDDEN)
+                return
+            self.send_json({"token": secrets.token_hex(16)})
             return
         if path == "/admin/transaction_status.php":
             if self.current_user() != ADMIN_ID:
@@ -4414,7 +4747,12 @@ class StandaloneHandler(BaseHTTPRequestHandler):
         template = self.root / "adm" / template_name
         text = read_text(template)
         if kind == "export":
-            text = text.replace("출금", "환전")
+            text = (
+                text.replace("출금", "환전")
+                .replace("환전갯수", "환전건수")
+                .replace("환전금액만끔", "환전 금액만큼")
+                .replace("환전신청한만큰금액", "환전 신청 금액만큼")
+            )
         soup = BeautifulSoup(normalize_admin_html(text), "html.parser")
         tbody = soup.select_one("#bettinglist")
         if tbody is None:
@@ -4715,7 +5053,7 @@ class StandaloneHandler(BaseHTTPRequestHandler):
             rows = db.execute(
                 """SELECT id,sender_id,receiver_id,message,
                           attachment_name,attachment_type,attachment_data,
-                          created_at,read_at
+                          created_at,read_at,edited_at,deleted_by_member
                    FROM chat_messages
                    WHERE member_id=? AND influencer_id=?
                    ORDER BY id ASC LIMIT 500""",
@@ -4730,28 +5068,49 @@ class StandaloneHandler(BaseHTTPRequestHandler):
         for row in rows:
             sender = str(row["sender_id"])
             message = str(row["message"] or "")
+            deleted_by_member = bool(row["deleted_by_member"])
             attachment_html = ""
-            if row["attachment_data"]:
+            if row["attachment_data"] and not deleted_by_member:
                 attachment_html = (
                     '<img class="cc-chat-message-image" '
                     f'src="{html.escape(str(row["attachment_data"]), quote=True)}" '
                     f'alt="{html.escape(str(row["attachment_name"] or "첨부 이미지"), quote=True)}">'
                 )
-            message_html = f"<p>{html.escape(message)}</p>" if message else ""
+            if deleted_by_member:
+                message_html = '<p class="cc-chat-deleted">삭제된 메시지입니다.</p>'
+            else:
+                message_html = f"<p>{html.escape(message)}</p>" if message else ""
+            edited_html = (
+                '<small class="cc-chat-edited">수정됨</small>'
+                if row["edited_at"] and not deleted_by_member
+                else ""
+            )
+            actions_html = (
+                '<button type="button" class="cc-chat-message-more" '
+                'data-cc-chat-action="message-menu" aria-label="메시지 옵션">&#8942;</button>'
+                '<span class="cc-chat-message-actions" hidden>'
+                f'<button type="button" data-cc-chat-action="delete-message" data-message-id="{int(row["id"])}">메시지 삭제</button>'
+                '</span>'
+                if sender == current_user and not deleted_by_member
+                else ""
+            )
             bubble_items.append(
-                f'<li class="{"mine" if sender == current_user else "theirs"}"><div>'
+                f'<li class="{"mine" if sender == current_user else "theirs"}" data-message-id="{int(row["id"])}"><div>'
                 f'<strong>{"나" if sender == current_user else html.escape(room_name)}</strong>'
                 f'{message_html}{attachment_html}'
-                f'<time>{html.escape(str(row["created_at"]))}</time></div></li>'
+                f'{actions_html}<time>{html.escape(str(row["created_at"]))}{edited_html}</time></div></li>'
             )
         bubbles = "".join(bubble_items) or '<li class="empty">첫 메시지를 보내 대화를 시작해보세요.</li>'
         page = f"""<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>{html.escape(room_name)} | CandyCast 채팅</title><style>
-*{{box-sizing:border-box;letter-spacing:0}}html,body{{height:100%}}body{{margin:0;font-family:Arial,'Malgun Gothic',sans-serif;background:#eef0f4;color:#222}}.cc-chat-header{{height:64px;max-width:720px;margin:0 auto;background:#fff;display:grid;grid-template-columns:44px 44px minmax(0,1fr) 44px;align-items:center;gap:10px;padding:7px 14px;border-bottom:1px solid #dedfe4}}.cc-chat-back,.cc-chat-close{{display:flex;width:44px;height:44px;align-items:center;justify-content:center;color:#222!important;line-height:1;text-decoration:none!important}}.cc-chat-back{{font-size:36px}}.cc-chat-close{{border-radius:50%;font-size:29px}}.cc-chat-back:hover,.cc-chat-close:hover{{background:#f2f3f5}}.cc-chat-back:focus-visible,.cc-chat-close:focus-visible{{outline:2px solid #ef4778;outline-offset:-2px}}.cc-chat-avatar{{width:44px;height:44px;border-radius:50%;object-fit:cover;background:#f0f1f4}}.cc-chat-heading{{min-width:0;display:flex;flex-direction:column}}.cc-chat-heading strong,.cc-chat-heading span{{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}.cc-chat-heading strong{{font-size:16px}}.cc-chat-heading span{{margin-top:2px;color:#7b7e86;font-size:12px}}main{{height:calc(100vh - 64px);height:calc(100dvh - 64px);display:grid;grid-template-rows:minmax(0,1fr) auto;max-width:720px;margin:0 auto;background:#fff}}.cc-chat-messages{{list-style:none;margin:0;padding:18px;overflow:auto;overscroll-behavior:contain;background:#f7f8fa}}.cc-chat-messages li{{display:flex;margin:0 0 12px}}.cc-chat-messages li.mine{{justify-content:flex-end}}.cc-chat-messages li>div{{max-width:78%;background:#fff;padding:10px 12px;border:1px solid #e1e2e6;border-radius:4px 12px 12px 12px;box-shadow:0 1px 2px rgba(25,28,38,.06)}}.cc-chat-messages li.mine>div{{background:#ffe2eb;border-color:#ffd2df;border-radius:12px 4px 12px 12px}}.cc-chat-messages li strong{{display:block;font-size:12px}}.cc-chat-messages li p{{margin:4px 0;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}}.cc-chat-messages li time{{display:block;color:#8a8d94;font-size:11px;text-align:right}}.cc-chat-messages li.empty{{justify-content:center;color:#888;padding-top:80px}}.cc-chat-composer{{border-top:1px solid #dedfe4;padding:9px 12px;background:#fff}}.cc-chat-composer-row{{display:flex;align-items:flex-end;gap:8px}}.cc-chat-composer textarea{{min-width:0;flex:1;resize:none;height:48px;max-height:112px;border:1px solid #c7c9cf;border-radius:4px;padding:9px 11px;font:inherit;line-height:1.4}}.cc-chat-attach,.cc-chat-send{{min-height:44px;border:0;border-radius:4px;cursor:pointer}}.cc-chat-attach{{width:44px;background:#eef0f4;color:#4d5360;font-size:21px}}.cc-chat-send{{width:74px;background:#ef4778;color:#fff;font-weight:700}}.cc-chat-attach:disabled,.cc-chat-send:disabled{{cursor:wait;opacity:.55}}.cc-chat-attachment-preview{{display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:6px 8px;border:1px solid #e1e2e6;border-radius:4px;background:#f7f8fa}}.cc-chat-attachment-preview[hidden]{{display:none!important}}.cc-chat-attachment-preview img{{width:44px;height:44px;border-radius:4px;object-fit:cover}}.cc-chat-attachment-preview span{{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:#666}}.cc-chat-attachment-preview button{{width:36px;height:36px;border:0;background:transparent;font-size:22px;cursor:pointer}}.cc-chat-message-image{{display:block;max-width:min(100%,360px);max-height:360px;margin-top:7px;border-radius:6px;object-fit:contain;background:#eceef2}}
+*{{box-sizing:border-box;letter-spacing:0}}html,body{{height:100%}}body{{margin:0;font-family:Arial,'Malgun Gothic',sans-serif;background:#eef0f4;color:#222}}.cc-chat-header{{height:64px;max-width:720px;margin:0 auto;background:#fff;display:grid;grid-template-columns:44px 44px minmax(0,1fr) 44px;align-items:center;gap:10px;padding:7px 14px;border-bottom:1px solid #dedfe4}}.cc-chat-back,.cc-chat-close{{display:flex;width:44px;height:44px;align-items:center;justify-content:center;color:#222!important;line-height:1;text-decoration:none!important}}.cc-chat-back{{font-size:36px}}.cc-chat-close{{border-radius:50%;font-size:29px}}.cc-chat-back:hover,.cc-chat-close:hover{{background:#f2f3f5}}.cc-chat-back:focus-visible,.cc-chat-close:focus-visible{{outline:2px solid #ef4778;outline-offset:-2px}}.cc-chat-avatar{{width:44px;height:44px;border-radius:50%;object-fit:cover;background:#f0f1f4}}.cc-chat-heading{{min-width:0;display:flex;flex-direction:column}}.cc-chat-heading strong,.cc-chat-heading span{{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}.cc-chat-heading strong{{font-size:16px}}.cc-chat-heading span{{margin-top:2px;color:#7b7e86;font-size:12px}}main{{height:calc(100vh - 64px);height:calc(100dvh - 64px);display:grid;grid-template-rows:minmax(0,1fr) auto;max-width:720px;margin:0 auto;background:#fff}}.cc-chat-messages{{list-style:none;margin:0;padding:18px;overflow:auto;overscroll-behavior:contain;background:#f7f8fa}}.cc-chat-messages li{{display:flex;margin:0 0 12px}}.cc-chat-messages li.mine{{justify-content:flex-end}}.cc-chat-messages li>div{{position:relative;max-width:78%;background:#fff;padding:10px 12px;border:1px solid #e1e2e6;border-radius:4px 12px 12px 12px;box-shadow:0 1px 2px rgba(25,28,38,.06)}}.cc-chat-messages li.mine>div{{background:#ffe2eb;border-color:#ffd2df;border-radius:12px 4px 12px 12px}}.cc-chat-messages li strong{{display:block;font-size:12px}}.cc-chat-messages li p{{margin:4px 0;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}}.cc-chat-messages li time{{display:block;color:#8a8d94;font-size:11px;text-align:right}}.cc-chat-messages li.empty{{justify-content:center;color:#888;padding-top:80px}}.cc-chat-composer{{border-top:1px solid #dedfe4;padding:9px 12px;background:#fff}}.cc-chat-composer-row{{display:flex;align-items:flex-end;gap:8px}}.cc-chat-composer textarea{{min-width:0;flex:1;resize:none;height:48px;max-height:112px;border:1px solid #c7c9cf;border-radius:4px;padding:9px 11px;font:inherit;line-height:1.4}}.cc-chat-attach,.cc-chat-send{{min-height:44px;border:0;border-radius:4px;cursor:pointer}}.cc-chat-attach{{width:44px;background:#eef0f4;color:#4d5360;font-size:21px}}.cc-chat-send{{width:74px;background:#ef4778;color:#fff;font-weight:700}}.cc-chat-attach:disabled,.cc-chat-send:disabled{{cursor:wait;opacity:.55}}.cc-chat-attachment-preview{{display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:6px 8px;border:1px solid #e1e2e6;border-radius:4px;background:#f7f8fa}}.cc-chat-attachment-preview[hidden]{{display:none!important}}.cc-chat-attachment-preview img{{width:44px;height:44px;border-radius:4px;object-fit:cover}}.cc-chat-attachment-preview span{{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:#666}}.cc-chat-attachment-preview button{{width:36px;height:36px;border:0;background:transparent;font-size:22px;cursor:pointer}}.cc-chat-message-image{{display:block;max-width:min(100%,360px);max-height:360px;margin-top:7px;border-radius:6px;object-fit:contain;background:#eceef2}}.cc-chat-message-more{{width:30px;height:30px;margin:4px -7px -3px 4px;border:0;border-radius:50%;background:transparent;color:#757983;font-size:20px;line-height:1;cursor:pointer;float:right}}.cc-chat-message-more:hover,.cc-chat-message-more:focus-visible{{background:rgba(255,255,255,.72)}}.cc-chat-message-actions{{position:absolute;z-index:3;right:8px;bottom:31px;padding:4px;border:1px solid #d8dae0;border-radius:5px;background:#fff;box-shadow:0 4px 14px rgba(26,29,38,.15)}}.cc-chat-message-actions[hidden]{{display:none!important}}.cc-chat-message-actions button{{min-height:36px;padding:0 12px;border:0;background:#fff;color:#c92e50;font-weight:700;cursor:pointer;white-space:nowrap}}.cc-chat-deleted{{color:#8b8e96;font-style:italic}}.cc-chat-edited{{margin-left:5px;color:#a0a3aa;font-size:10px;font-weight:400}}
+.cc-chat-message-more{{position:absolute;right:0;bottom:-5px;width:44px;height:44px;margin:0;float:none}}
+.cc-chat-messages li.mine time{{padding-right:28px}}
+.cc-chat-message-actions{{bottom:38px}}
 </style></head><body class="cc-public-page cc-page-chat cc-mobile-immersive" data-cc-authenticated="1" data-cc-user="{html.escape(current_user, quote=True)}" data-balance-status="{html.escape(str(member_state['balance_status']), quote=True)}" data-account-status="{html.escape(str(member_state['account_status']), quote=True)}"><header class="cc-chat-header"><a class="cc-chat-back" href="/chatlist.php" aria-label="채팅 목록으로 돌아가기">&#8249;</a><img class="cc-chat-avatar" src="{html.escape(profile_image, quote=True)}" alt=""><div class="cc-chat-heading"><strong>{html.escape(room_name)}</strong><span>{html.escape(room_subtitle)}</span></div><a class="cc-chat-close" href="/chatlist.php" aria-label="인플루언서 채팅 닫기">&times;</a></header><main><ul class="cc-chat-messages" aria-live="polite">{bubbles}</ul><form class="cc-chat-composer" method="post" action="/chat/memo_form.php?me_recv_mb_id={quote(receiver)}" data-influencer-id="{html.escape(receiver, quote=True)}"><div class="cc-chat-attachment-preview" hidden><img alt="첨부 이미지 미리보기"><span></span><button type="button" data-cc-chat-action="remove-attachment" aria-label="첨부 이미지 삭제">&times;</button></div><div class="cc-chat-composer-row"><input id="cc-member-chat-file" type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden><button type="button" class="cc-chat-attach" data-cc-chat-action="attach" aria-label="사진 첨부">&#128206;</button><textarea name="message" maxlength="1000" placeholder="메시지를 입력하세요" aria-label="메시지"></textarea><button type="submit" class="cc-chat-send">전송</button></div></form></main></body></html>"""
         page = page.replace(
             "</head>",
-            '<link rel="stylesheet" href="/assets/local/candycast-support.css">'
-            '<link rel="stylesheet" href="/assets/local/candycast-member-chat.css">'
+            '<link rel="stylesheet" href="/assets/local/candycast-support.css?v=20260717-chat3">'
+            '<link rel="stylesheet" href="/assets/local/candycast-member-chat.css?v=20260717-chat3">'
             '<link rel="stylesheet" href="/assets/local/candycast-mobile.css?v=20260717a5a1f6e">'
             '<link rel="stylesheet" href="/assets/local/candycast-restrictions.css"></head>',
         ).replace(
@@ -4760,8 +5119,8 @@ class StandaloneHandler(BaseHTTPRequestHandler):
             + member_chat_widget_markup()
             + mobile_navigation_markup(True)
             + '<script src="/assets/local/candycast-image-utils.js" defer></script>'
-            + '<script src="/assets/local/candycast-support.js" defer></script>'
-            + '<script src="/assets/local/candycast-member-chat.js?v=20260717-chat2" defer></script>'
+            + '<script src="/assets/local/candycast-support.js?v=20260717-chat3" defer></script>'
+            + '<script src="/assets/local/candycast-member-chat.js?v=20260717-chat3" defer></script>'
             + '<script src="/assets/local/candycast-mobile.js" defer></script>'
             + '<script src="/assets/local/candycast-restrictions.js" defer></script></body>',
         )

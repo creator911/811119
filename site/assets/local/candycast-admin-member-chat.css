@@ -263,6 +263,7 @@
 }
 
 .cc-chat-message > div {
+  position: relative;
   max-width: min(72%, 680px);
   padding: 10px 12px;
   border: 1px solid #dfe3e9;
@@ -309,6 +310,55 @@
   margin-top: 6px;
   color: #9097a2;
   text-align: right;
+}
+
+.cc-chat-message p.is-deleted {
+  color: #888f9a;
+  font-style: italic;
+}
+
+.cc-chat-message-edited {
+  margin-left: 5px;
+  color: #a3a9b2;
+  font-size: 10px;
+  font-weight: 400;
+}
+
+.cc-chat-message-tools {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-top: 7px;
+}
+.cc-chat-message-tools button,
+.cc-chat-inline-editor button {
+  min-height: 28px;
+  padding: 0 8px;
+  border: 1px solid #cfd4dc;
+  border-radius: 3px;
+  background: #fff;
+  color: #535c69;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+}
+.cc-chat-message-tools button:last-child { color: #c52d49; }
+.cc-chat-inline-editor { margin-top: 8px; }
+.cc-chat-inline-editor[hidden] { display: none !important; }
+.cc-chat-inline-editor textarea {
+  width: 100%;
+  min-height: 60px;
+  resize: vertical;
+  border: 1px solid #aeb6c3;
+  border-radius: 3px;
+  padding: 8px;
+  font: inherit;
+}
+.cc-chat-inline-editor > span {
+  display: flex;
+  justify-content: flex-end;
+  gap: 5px;
+  margin-top: 5px;
 }
 
 .cc-chat-admin-composer {

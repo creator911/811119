@@ -13,6 +13,7 @@
     attachmentBusy: false,
     attachmentVersion: 0,
     sending: false,
+    editingId: 0,
   };
   const POLL_INTERVAL_MS = 5000;
   const POLL_JITTER_MS = 500;
@@ -168,9 +169,10 @@
           ? payload.influencer.name || payload.influencer.id
           : payload.member.nickname || payload.member.id;
         const text = document.createElement("p");
-        text.textContent = item.message || "";
-        if (!item.message) text.hidden = true;
-        if (item.attachment?.data) {
+        text.textContent = item.deletedByMember ? "삭제된 메시지입니다." : (item.message || "");
+        text.classList.toggle("is-deleted", Boolean(item.deletedByMember));
+        if (!item.message && !item.deletedByMember) text.hidden = true;
+        if (!item.deletedByMember && item.attachment?.data) {
           const attachment = document.createElement("img");
           attachment.className = "cc-chat-message-image";
           attachment.src = item.attachment.data;
@@ -181,6 +183,48 @@
         }
         const time = document.createElement("time");
         time.textContent = item.createdAt;
+        if (item.editedAt && !item.deletedByMember) {
+          const edited = document.createElement("small");
+          edited.className = "cc-chat-message-edited";
+          edited.textContent = "수정됨";
+          time.append(edited);
+        }
+        const tools = document.createElement("span");
+        tools.className = "cc-chat-message-tools";
+        if (!item.deletedByMember) {
+          const edit = document.createElement("button");
+          edit.type = "button";
+          edit.dataset.messageAction = "edit";
+          edit.dataset.messageId = item.id;
+          edit.textContent = "수정";
+          tools.append(edit);
+        }
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.dataset.messageAction = "delete";
+        remove.dataset.messageId = item.id;
+        remove.textContent = "삭제";
+        tools.append(remove);
+        const editor = document.createElement("div");
+        editor.className = "cc-chat-inline-editor";
+        editor.hidden = true;
+        const editInput = document.createElement("textarea");
+        editInput.rows = 2;
+        editInput.maxLength = 1000;
+        editInput.value = item.message || "";
+        const editorActions = document.createElement("span");
+        const save = document.createElement("button");
+        save.type = "button";
+        save.dataset.messageAction = "save";
+        save.dataset.messageId = item.id;
+        save.textContent = "저장";
+        const cancel = document.createElement("button");
+        cancel.type = "button";
+        cancel.dataset.messageAction = "cancel";
+        cancel.textContent = "취소";
+        editorActions.append(save, cancel);
+        editor.append(editInput, editorActions);
+        bubble.append(tools, editor);
         bubble.append(time);
         article.append(bubble);
         messages.append(article);
@@ -226,6 +270,7 @@
       showToast("회원과 보내는 BJ를 모두 선택해주세요.", true);
       return;
     }
+    if (!preservePosition) state.editingId = 0;
     state.memberId = memberId;
     state.influencerId = influencerId;
     $("#cc-chat-member-select").value = memberId;
@@ -280,7 +325,7 @@
     state.pollTimer = window.setTimeout(async () => {
       try {
         await loadRooms($("#cc-chat-room-search")?.value || "");
-        if (state.memberId && state.influencerId) {
+        if (state.memberId && state.influencerId && !state.editingId) {
           await openConversation(state.memberId, state.influencerId, true);
         }
       } catch (_error) {
@@ -305,6 +350,65 @@
     if (!room) return;
     openConversation(room.dataset.memberId, room.dataset.influencerId)
       .catch((error) => showToast(error.message, true));
+  });
+  $("#cc-chat-admin-messages")?.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-message-action]");
+    if (!button) return;
+    const action = button.dataset.messageAction;
+    const article = button.closest(".cc-chat-message");
+    const editor = article?.querySelector(".cc-chat-inline-editor");
+    const messageId = Number(button.dataset.messageId || 0);
+    if (action === "edit") {
+      state.editingId = messageId;
+      editor.hidden = false;
+      editor.querySelector("textarea").focus();
+      return;
+    }
+    if (action === "cancel") {
+      state.editingId = 0;
+      editor.hidden = true;
+      return;
+    }
+    if (action === "save") {
+      const message = editor.querySelector("textarea").value.trim();
+      if (!message) return showToast("메시지를 입력해 주세요.", true);
+      button.disabled = true;
+      try {
+        await request("/api/admin/member-chat/messages/edit", {
+          method: "POST",
+          body: JSON.stringify({ id: messageId, memberId: state.memberId, influencerId: state.influencerId, message }),
+        });
+        state.editingId = 0;
+        await Promise.all([
+          openConversation(state.memberId, state.influencerId, true),
+          loadRooms($("#cc-chat-room-search")?.value || ""),
+        ]);
+        showToast("메시지를 수정했습니다.");
+      } catch (error) {
+        showToast(error.message, true);
+        button.disabled = false;
+      }
+      return;
+    }
+    if (action === "delete") {
+      if (!window.confirm("이 메시지를 삭제할까요?")) return;
+      button.disabled = true;
+      try {
+        await request("/api/admin/member-chat/messages/delete", {
+          method: "POST",
+          body: JSON.stringify({ id: messageId, memberId: state.memberId, influencerId: state.influencerId }),
+        });
+        state.editingId = 0;
+        await Promise.all([
+          openConversation(state.memberId, state.influencerId, true),
+          loadRooms($("#cc-chat-room-search")?.value || ""),
+        ]);
+        showToast("메시지를 삭제했습니다.");
+      } catch (error) {
+        showToast(error.message, true);
+        button.disabled = false;
+      }
+    }
   });
   $("#cc-chat-admin-composer")?.addEventListener("submit", (event) => {
     event.preventDefault();

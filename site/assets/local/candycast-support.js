@@ -88,6 +88,7 @@
     var mine = item.senderType === "member";
     var row = document.createElement("div");
     row.className = "cc-support-message " + (mine ? "member" : "staff");
+    row.dataset.messageId = item.id;
     if (!mine) {
       var avatar = document.createElement("img");
       avatar.className = "cc-support-message-avatar";
@@ -105,8 +106,13 @@
     }
     var bubble = document.createElement("div");
     bubble.className = "cc-support-message-bubble";
-    if (item.message) bubble.appendChild(document.createTextNode(item.message));
-    if (item.attachment && item.attachment.data) {
+    if (item.deletedByMember) {
+      bubble.classList.add("is-deleted");
+      bubble.textContent = "삭제된 메시지입니다.";
+    } else if (item.message) {
+      bubble.appendChild(document.createTextNode(item.message));
+    }
+    if (!item.deletedByMember && item.attachment && item.attachment.data) {
       var image = document.createElement("img");
       image.className = "cc-support-message-image";
       image.src = item.attachment.data;
@@ -116,14 +122,40 @@
     body.appendChild(bubble);
     var time = document.createElement("time");
     time.textContent = timeLabel(item.createdAt);
+    if (item.editedAt && !item.deletedByMember) {
+      var edited = document.createElement("small");
+      edited.className = "cc-support-message-edited";
+      edited.textContent = "수정됨";
+      time.appendChild(edited);
+    }
     body.appendChild(time);
+    if (mine && !item.deletedByMember) {
+      var more = document.createElement("button");
+      more.type = "button";
+      more.className = "cc-support-message-more";
+      more.dataset.ccSupportAction = "message-menu";
+      more.setAttribute("aria-label", "메시지 옵션");
+      more.textContent = "⋮";
+      var actions = document.createElement("span");
+      actions.className = "cc-support-message-actions";
+      actions.hidden = true;
+      var remove = document.createElement("button");
+      remove.type = "button";
+      remove.dataset.ccSupportAction = "delete-message";
+      remove.dataset.messageId = item.id;
+      remove.textContent = "메시지 삭제";
+      actions.appendChild(remove);
+      body.append(more, actions);
+    }
     row.appendChild(body);
     return row;
   }
 
   function renderMessages(items) {
     var list = Array.isArray(items) ? items : [];
-    var nextSignature = list.map(function (item) { return item.id; }).join(",");
+    var nextSignature = list.map(function (item) {
+      return [item.id, item.message, item.editedAt, item.deletedByMember].join(":");
+    }).join(",");
     if (nextSignature === messageSignature) return;
     var nearBottom = messages.scrollHeight - messages.scrollTop - messages.clientHeight < 80;
     messageSignature = nextSignature;
@@ -212,7 +244,28 @@
     var actionElement = event.target.closest("[data-cc-support-action]");
     if (!actionElement) return;
     var action = actionElement.dataset.ccSupportAction;
-    if (action === "open") {
+    if (action === "message-menu") {
+      var actionMenu = actionElement.nextElementSibling;
+      root.querySelectorAll(".cc-support-message-actions").forEach(function (menu) {
+        if (menu !== actionMenu) menu.hidden = true;
+      });
+      if (actionMenu) actionMenu.hidden = !actionMenu.hidden;
+    } else if (action === "delete-message") {
+      if (!window.confirm("이 메시지를 삭제할까요?")) return;
+      actionElement.disabled = true;
+      request("/api/support/messages/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: actionElement.dataset.messageId })
+      }).then(function () {
+        messageSignature = "";
+        return loadMessages(true);
+      }).catch(function (error) {
+        window.alert(error.message);
+      }).finally(function () {
+        actionElement.disabled = false;
+      });
+    } else if (action === "open") {
       setOpen(true);
       setMode("home");
     } else if (action === "toggle") {
