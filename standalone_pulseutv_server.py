@@ -1941,7 +1941,7 @@ def render_dynamic_page(
             "link",
             id="candycast-mobile-style",
             rel="stylesheet",
-            href="/assets/local/candycast-mobile.css?v=20260718-shop2",
+            href="/assets/local/candycast-mobile.css?v=20260718-ranking2",
         )
         soup.head.append(mobile_style)
         changed = True
@@ -5147,7 +5147,7 @@ class StandaloneHandler(BaseHTTPRequestHandler):
             "</head>",
             '<link rel="stylesheet" href="/assets/local/candycast-support.css?v=20260717-chat3">'
             '<link rel="stylesheet" href="/assets/local/candycast-member-chat.css?v=20260717-chat3">'
-            '<link rel="stylesheet" href="/assets/local/candycast-mobile.css?v=20260718-shop2">'
+            '<link rel="stylesheet" href="/assets/local/candycast-mobile.css?v=20260718-ranking2">'
             '<link rel="stylesheet" href="/assets/local/candycast-restrictions.css"></head>',
         ).replace(
             "</body>",

@@ -37,6 +37,16 @@ body.cc-page-shop .cc-shop-level-mobile {
 }
 
 @media (min-width: 769px) {
+  body.cc-page-ranking .popular-list-item img.ui.circular.image {
+    width: 136px !important;
+    height: auto !important;
+    max-width: calc(100% + 24px);
+    aspect-ratio: 1;
+    margin: 0 0 15px 50%;
+    object-fit: cover;
+    transform: translateX(-50%);
+  }
+
   body.cc-page-shop .cc-shop-symbol {
     transform: none;
   }
