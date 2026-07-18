@@ -8,6 +8,11 @@
     choices: null,
     influencers: [],
     selectedInfluencerId: "",
+    transactions: [],
+    transactionPage: 1,
+    transactionPerPage: 10,
+    transactionTotal: 0,
+    transactionTotalPages: 1,
   };
 
   async function request(url, options = {}) {
@@ -147,6 +152,220 @@
     state.members = payload.members || [];
     state.choices = payload.choices || state.choices;
     renderMembers();
+  }
+
+  function appendTextCell(row, text, className = "") {
+    const cell = document.createElement("td");
+    if (className) cell.className = className;
+    cell.textContent = text;
+    row.append(cell);
+    return cell;
+  }
+
+  function transactionActionButton(transaction, action, label, className = "") {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.transactionAction = action;
+    button.dataset.transactionId = String(transaction.id);
+    button.className = className;
+    button.textContent = label;
+    return button;
+  }
+
+  function renderTransactionPager() {
+    const pager = $("#cc-transaction-pager");
+    const total = $("#cc-transaction-total");
+    if (!pager || !total) return;
+    pager.replaceChildren();
+    total.textContent = `총 ${formatNumber.format(state.transactionTotal)}개`;
+
+    const makePageButton = (label, page, active = false, disabled = false) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.transactionPage = String(page);
+      button.textContent = label;
+      button.classList.toggle("is-active", active);
+      button.disabled = disabled;
+      return button;
+    };
+    pager.append(makePageButton("이전", state.transactionPage - 1, false, state.transactionPage <= 1));
+    const start = Math.max(1, Math.min(state.transactionPage - 2, state.transactionTotalPages - 4));
+    const end = Math.min(state.transactionTotalPages, start + 4);
+    for (let page = start; page <= end; page += 1) {
+      pager.append(makePageButton(String(page), page, page === state.transactionPage));
+    }
+    pager.append(makePageButton("다음", state.transactionPage + 1, false, state.transactionPage >= state.transactionTotalPages));
+
+    document.querySelectorAll("[data-transaction-size]").forEach((button) => {
+      button.classList.toggle("is-active", Number(button.dataset.transactionSize) === state.transactionPerPage);
+    });
+  }
+
+  function renderTransactions() {
+    const body = $("#cc-transaction-rows");
+    if (!body) return;
+    body.replaceChildren();
+    if (!state.transactions.length) {
+      const row = document.createElement("tr");
+      const cell = document.createElement("td");
+      cell.colSpan = 8;
+      cell.className = "cc-admin-empty";
+      cell.textContent = "충전/출금 신청 내역이 없습니다.";
+      row.append(cell);
+      body.append(row);
+      renderTransactionPager();
+      return;
+    }
+
+    for (const transaction of state.transactions) {
+      const row = document.createElement("tr");
+      row.className = `cc-transaction-row is-${transaction.type}${transaction.pending ? " is-pending" : ""}`;
+      row.dataset.transactionId = String(transaction.id);
+
+      const typeCell = document.createElement("td");
+      const type = document.createElement("span");
+      type.className = `cc-transaction-type is-${transaction.type}`;
+      type.textContent = transaction.typeLabel;
+      typeCell.append(type);
+      row.append(typeCell);
+      appendTextCell(row, transaction.nickname || transaction.memberId);
+      appendTextCell(row, transaction.name || "-");
+      appendTextCell(row, `${formatNumber.format(transaction.amount || 0)}원`, "cc-transaction-amount");
+
+      const accountCell = document.createElement("td");
+      accountCell.className = "cc-transaction-account";
+      if (transaction.account) {
+        const bank = document.createElement("strong");
+        bank.textContent = transaction.account.bank || "-";
+        const numberLine = document.createElement("span");
+        const edit = document.createElement("button");
+        edit.type = "button";
+        edit.dataset.transactionAccount = String(transaction.id);
+        edit.textContent = "수정";
+        const number = document.createElement("b");
+        number.textContent = transaction.account.number || "-";
+        numberLine.append(edit, number);
+        const holder = document.createElement("small");
+        holder.textContent = transaction.account.holder || "-";
+        accountCell.append(bank, numberLine, holder);
+      } else {
+        accountCell.textContent = "-";
+      }
+      row.append(accountCell);
+
+      const timeCell = document.createElement("td");
+      timeCell.className = "cc-transaction-time";
+      const requested = document.createElement("strong");
+      requested.textContent = transaction.createdAt || "-";
+      const handled = document.createElement("small");
+      handled.textContent = transaction.handledAt ? `처리 ${transaction.handledAt}` : "처리 대기중";
+      timeCell.append(requested, handled);
+      row.append(timeCell);
+
+      const statusCell = document.createElement("td");
+      const status = document.createElement("strong");
+      status.className = `cc-transaction-status is-${transaction.rawStatus === "대기" ? "pending" : transaction.completed ? "complete" : "closed"}`;
+      status.textContent = transaction.status || "대기";
+      statusCell.append(status);
+      row.append(statusCell);
+
+      const actionCell = document.createElement("td");
+      const actions = document.createElement("div");
+      actions.className = "cc-transaction-actions";
+      if (transaction.pending) {
+        actions.append(
+          transactionActionButton(transaction, "complete", "완료처리", "cc-admin-primary"),
+          transactionActionButton(transaction, "cancel", "취소", "cc-admin-secondary"),
+        );
+      } else if (transaction.completed) {
+        actions.append(transactionActionButton(transaction, "rollback", "롤백", "cc-admin-secondary"));
+      }
+      actions.append(transactionActionButton(transaction, "delete", "삭제", "cc-admin-danger"));
+      actionCell.append(actions);
+      row.append(actionCell);
+      body.append(row);
+    }
+    renderTransactionPager();
+  }
+
+  async function loadTransactions(page = state.transactionPage) {
+    const payload = await request(`/api/admin/transactions?page=${page}&per_page=${state.transactionPerPage}`);
+    state.transactions = payload.transactions || [];
+    state.transactionPage = Number(payload.page || 1);
+    state.transactionPerPage = Number(payload.perPage || 10);
+    state.transactionTotal = Number(payload.total || 0);
+    state.transactionTotalPages = Number(payload.totalPages || 1);
+    renderTransactions();
+  }
+
+  async function runTransactionAction(button) {
+    const action = button.dataset.transactionAction;
+    const messages = {
+      complete: "이 신청을 완료 처리할까요? 회원 캔디 잔액에 즉시 반영됩니다.",
+      cancel: "이 신청을 취소할까요? 출금 신청이면 예약된 캔디가 반환됩니다.",
+      rollback: "완료 처리를 롤백할까요? 회원 캔디 잔액도 이전 상태로 돌아갑니다.",
+      delete: "이 신청을 목록에서 삭제할까요? 처리된 잔액은 유지됩니다.",
+    };
+    if (!window.confirm(messages[action] || "이 신청을 처리할까요?")) return;
+    button.disabled = true;
+    try {
+      await request("/api/admin/transactions/action", {
+        method: "POST",
+        body: JSON.stringify({ id: Number(button.dataset.transactionId), action }),
+      });
+      showToast("신청 처리가 완료되었습니다.");
+      await Promise.all([
+        loadTransactions(state.transactionPage),
+        loadMembers($("#cc-member-search")?.value || ""),
+      ]);
+    } catch (error) {
+      showToast(error.message, true);
+      button.disabled = false;
+    }
+  }
+
+  function openTransactionAccount(transactionId) {
+    const transaction = state.transactions.find((item) => String(item.id) === String(transactionId));
+    const modal = $("#cc-transaction-account-modal");
+    const form = $("#cc-transaction-account-form");
+    if (!transaction?.account || !modal || !form) return;
+    form.elements.id.value = transaction.id;
+    form.elements.bank.value = transaction.account.bank || "";
+    form.elements.accountNumber.value = transaction.account.number || "";
+    form.elements.holder.value = transaction.account.holder || "";
+    $("#cc-account-member").textContent = `${transaction.nickname} (${transaction.memberId}) 출금계좌`;
+    modal.hidden = false;
+    document.body.style.overflow = "hidden";
+    form.elements.bank.focus();
+  }
+
+  function closeTransactionAccount() {
+    const modal = $("#cc-transaction-account-modal");
+    if (!modal) return;
+    modal.hidden = true;
+    if ($("#cc-gift-modal")?.hidden !== false) document.body.style.overflow = "";
+  }
+
+  async function saveTransactionAccount(form, button) {
+    button.disabled = true;
+    try {
+      await request("/api/admin/transactions/account", {
+        method: "POST",
+        body: JSON.stringify({
+          id: Number(form.elements.id.value),
+          bank: form.elements.bank.value,
+          accountNumber: form.elements.accountNumber.value,
+          holder: form.elements.holder.value,
+        }),
+      });
+      closeTransactionAccount();
+      showToast("출금계좌를 수정했습니다.");
+      await loadTransactions(state.transactionPage);
+    } catch (error) {
+      showToast(error.message, true);
+    } finally {
+      button.disabled = false;
+    }
   }
 
   function collectMemberRow(row) {
@@ -324,6 +543,31 @@
   }
 
   document.addEventListener("click", async (event) => {
+    const transactionButton = event.target.closest("[data-transaction-action]");
+    if (transactionButton) {
+      await runTransactionAction(transactionButton);
+      return;
+    }
+    const accountButton = event.target.closest("[data-transaction-account]");
+    if (accountButton) {
+      openTransactionAccount(accountButton.dataset.transactionAccount);
+      return;
+    }
+    const pageButton = event.target.closest("[data-transaction-page]");
+    if (pageButton && !pageButton.disabled) {
+      await loadTransactions(Number(pageButton.dataset.transactionPage));
+      return;
+    }
+    const sizeButton = event.target.closest("[data-transaction-size]");
+    if (sizeButton) {
+      state.transactionPerPage = Number(sizeButton.dataset.transactionSize) === 100 ? 100 : 10;
+      await loadTransactions(1);
+      return;
+    }
+    if (event.target.closest("[data-account-action='close']")) {
+      closeTransactionAccount();
+      return;
+    }
     const memberButton = event.target.closest("[data-member-action]");
     if (memberButton) {
       const row = memberButton.closest("tr");
@@ -389,13 +633,23 @@
     submitGift(event.currentTarget, event.currentTarget.querySelector('[type="submit"]'));
   });
 
+  $("#cc-transaction-account-form")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    saveTransactionAccount(event.currentTarget, event.currentTarget.querySelector('[type="submit"]'));
+  });
+
   $("#cc-gift-bj-search")?.addEventListener("input", (event) => renderGiftInfluencers(event.target.value));
   $("#cc-member-search")?.addEventListener("input", debounce((event) => {
     loadMembers(event.target.value).catch((error) => showToast(error.message, true));
   }));
   $("#cc-members-refresh")?.addEventListener("click", () => {
-    Promise.all([loadMembers($("#cc-member-search")?.value || ""), loadInfluencers()])
+    Promise.all([loadMembers($("#cc-member-search")?.value || ""), loadInfluencers(), loadTransactions(state.transactionPage)])
       .then(() => showToast("최신 정보를 불러왔습니다."))
+      .catch((error) => showToast(error.message, true));
+  });
+  $("#cc-transactions-refresh")?.addEventListener("click", () => {
+    loadTransactions(state.transactionPage)
+      .then(() => showToast("충전/출금 신청을 새로고침했습니다."))
       .catch((error) => showToast(error.message, true));
   });
   $("#cc-partners-refresh")?.addEventListener("click", () => {
@@ -404,11 +658,13 @@
       .catch((error) => showToast(error.message, true));
   });
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && !$("#cc-gift-modal")?.hidden) closeGift();
+    if (event.key !== "Escape") return;
+    if (!$("#cc-transaction-account-modal")?.hidden) closeTransactionAccount();
+    else if (!$("#cc-gift-modal")?.hidden) closeGift();
   });
 
   const initialTasks = [];
-  if ($("#cc-member-rows")) initialTasks.push(loadMembers(), loadInfluencers());
+  if ($("#cc-member-rows")) initialTasks.push(loadMembers(), loadInfluencers(), loadTransactions());
   if ($("#cc-code-list")) initialTasks.push(loadCodes());
   Promise.all(initialTasks).catch((error) => showToast(error.message, true));
 })();

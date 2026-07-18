@@ -290,6 +290,216 @@
   font-size: 10px;
 }
 
+.cc-transaction-section {
+  padding: 18px;
+}
+
+.cc-transaction-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #e5e8ed;
+}
+
+.cc-transaction-pager,
+.cc-transaction-page-size,
+.cc-transaction-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.cc-transaction-pager button,
+.cc-transaction-page-size button {
+  min-width: 32px;
+  min-height: 29px;
+  padding: 0 8px;
+  border: 1px solid #b9cdf1;
+  border-radius: 6px;
+  background: #fff;
+  color: #075bd5;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.cc-transaction-pager button.is-active,
+.cc-transaction-page-size button.is-active {
+  border-color: #075bd5;
+  background: #075bd5;
+  color: #fff;
+}
+
+.cc-transaction-pager button:disabled {
+  color: #9ca8b8;
+  cursor: default;
+  opacity: 0.65;
+}
+
+.cc-transaction-total {
+  color: #526071;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.cc-transaction-page-size {
+  margin-left: auto;
+}
+
+.cc-transaction-table-wrap {
+  margin-top: 0;
+  overflow: hidden;
+  border-radius: 7px;
+}
+
+.cc-transaction-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 4px;
+  table-layout: fixed;
+}
+
+.cc-transaction-table th,
+.cc-transaction-table td {
+  min-width: 0;
+  padding: 7px 6px;
+  overflow: hidden;
+  border: 0;
+  border-bottom: 1px solid #dfe5ed;
+  color: #17202d;
+  vertical-align: middle;
+  text-align: left;
+  text-overflow: ellipsis;
+}
+
+.cc-transaction-table th {
+  background: #f4f7fb;
+  color: #435064;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.cc-transaction-table th:nth-child(1) { width: 4%; }
+.cc-transaction-table th:nth-child(2) { width: 8%; }
+.cc-transaction-table th:nth-child(3) { width: 8%; }
+.cc-transaction-table th:nth-child(4) { width: 10%; }
+.cc-transaction-table th:nth-child(5) { width: 26%; }
+.cc-transaction-table th:nth-child(6) { width: 18%; }
+.cc-transaction-table th:nth-child(7) { width: 8%; }
+.cc-transaction-table th:nth-child(8) { width: 18%; }
+
+.cc-transaction-row td {
+  height: 66px;
+  background: #f5f9ff;
+  font-size: 11px;
+}
+
+.cc-transaction-row.is-withdraw td {
+  background: #f3fbf6;
+}
+
+.cc-transaction-row td:first-child {
+  border-left: 1px solid #d8e3f1;
+  border-radius: 7px 0 0 7px;
+}
+
+.cc-transaction-row td:last-child {
+  border-right: 1px solid #d8e3f1;
+  border-radius: 0 7px 7px 0;
+}
+
+.cc-transaction-type {
+  display: inline-flex;
+  min-width: 30px;
+  min-height: 25px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 13px;
+  background: #e2efff;
+  color: #075bd5;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.cc-transaction-type.is-withdraw {
+  background: #e0f6e8;
+  color: #098346;
+}
+
+.cc-transaction-amount {
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.cc-transaction-account,
+.cc-transaction-time {
+  line-height: 1.35;
+}
+
+.cc-transaction-account strong,
+.cc-transaction-account span,
+.cc-transaction-account small,
+.cc-transaction-time strong,
+.cc-transaction-time small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cc-transaction-account span {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.cc-transaction-account span button {
+  min-height: 24px;
+  padding: 0 7px;
+  border: 0;
+  background: #e7f0ff;
+  color: #075bd5;
+  font-size: 10px;
+}
+
+.cc-transaction-account small,
+.cc-transaction-time small {
+  margin-top: 3px;
+  color: #66758a;
+  font-size: 10px;
+}
+
+.cc-transaction-status {
+  color: #e84556;
+  font-size: 11px;
+}
+
+.cc-transaction-status.is-complete {
+  color: #087a45;
+}
+
+.cc-transaction-status.is-closed {
+  color: #e02b3d;
+}
+
+.cc-transaction-actions {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.cc-transaction-actions button {
+  min-height: 29px;
+  padding: 0 8px;
+  font-size: 10px;
+}
+
+.cc-account-modal-card {
+  width: min(460px, 100%);
+}
+
 .cc-member-online-id {
   border-color: #075bd5 !important;
   color: #075bd5 !important;

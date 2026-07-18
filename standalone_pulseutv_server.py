@@ -838,6 +838,9 @@ def init_db(db_path: Path, backup_dir: Path | None, site_dir: Path | None = None
             "count": "INTEGER NOT NULL DEFAULT 0",
             "phone": "TEXT NOT NULL DEFAULT ''",
             "level": "TEXT NOT NULL DEFAULT ''",
+            "handled_at": "TEXT NOT NULL DEFAULT ''",
+            "handled_by": "TEXT NOT NULL DEFAULT ''",
+            "is_deleted": "INTEGER NOT NULL DEFAULT 0",
         }.items():
             if column not in transaction_columns:
                 db.execute(f"ALTER TABLE transactions ADD COLUMN {column} {definition}")
@@ -2277,6 +2280,39 @@ MEMBERS_ADMIN_MARKUP = """
       </table>
     </div>
   </section>
+  <section class="cc-admin-section cc-transaction-section" id="cc-transaction-section">
+    <div class="cc-admin-section-head">
+      <div><h2>충전/출금 신청</h2><p>회원의 충전과 출금 신청을 한 목록에서 처리합니다. 기존 전용 관리 화면도 그대로 사용할 수 있습니다.</p></div>
+      <button type="button" class="cc-admin-secondary" id="cc-transactions-refresh">새로고침</button>
+    </div>
+    <div class="cc-transaction-toolbar">
+      <div class="cc-transaction-pager" id="cc-transaction-pager" aria-label="충전 출금 신청 페이지"></div>
+      <span class="cc-transaction-total" id="cc-transaction-total">총 0개</span>
+      <div class="cc-transaction-page-size" aria-label="페이지당 표시 개수">
+        <button type="button" data-transaction-size="10" class="is-active">10개</button>
+        <button type="button" data-transaction-size="100">100개</button>
+      </div>
+    </div>
+    <div class="cc-admin-table-wrap cc-transaction-table-wrap">
+      <table class="cc-transaction-table">
+        <thead><tr><th>구분</th><th>닉네임</th><th>이름</th><th>금액</th><th>출금계좌</th><th>신청/처리</th><th>상태</th><th>관리</th></tr></thead>
+        <tbody id="cc-transaction-rows"><tr><td colspan="8" class="cc-admin-empty">신청 내역을 불러오는 중입니다.</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+  <div class="cc-admin-modal" id="cc-transaction-account-modal" hidden>
+    <div class="cc-admin-modal-backdrop" data-account-action="close"></div>
+    <section class="cc-admin-modal-card cc-account-modal-card" role="dialog" aria-modal="true" aria-labelledby="cc-account-title">
+      <header><div><h2 id="cc-account-title">출금계좌 수정</h2><p id="cc-account-member">출금 신청 계좌를 확인하세요.</p></div><button type="button" data-account-action="close" aria-label="닫기">&times;</button></header>
+      <form id="cc-transaction-account-form">
+        <input type="hidden" name="id">
+        <label>은행<input name="bank" maxlength="30" required placeholder="은행명"></label>
+        <label>계좌번호<input name="accountNumber" inputmode="numeric" maxlength="30" required placeholder="숫자만 입력"></label>
+        <label>예금주<input name="holder" maxlength="40" required placeholder="예금주"></label>
+        <div class="cc-admin-modal-actions"><button type="button" class="cc-admin-secondary" data-account-action="close">취소</button><button type="submit" class="cc-admin-primary">저장</button></div>
+      </form>
+    </section>
+  </div>
   <div class="cc-admin-modal" id="cc-gift-modal" hidden>
     <div class="cc-admin-modal-backdrop" data-gift-action="close"></div>
     <section class="cc-admin-modal-card" role="dialog" aria-modal="true" aria-labelledby="cc-gift-title">
@@ -2761,6 +2797,225 @@ class StandaloneHandler(BaseHTTPRequestHandler):
                 "accountStatuses": list(ACCOUNT_STATUSES),
             },
         }
+
+    def admin_transactions_payload(self, query: dict[str, list[str]]) -> dict[str, object]:
+        try:
+            page = max(1, int(query.get("page", ["1"])[0]))
+        except (TypeError, ValueError):
+            page = 1
+        try:
+            per_page = int(query.get("per_page", ["10"])[0])
+        except (TypeError, ValueError):
+            per_page = 10
+        per_page = 100 if per_page == 100 else 10
+        offset = (page - 1) * per_page
+        with self.support_db() as db:
+            total = int(
+                db.execute(
+                    "SELECT COUNT(*) FROM transactions WHERE COALESCE(is_deleted,0)=0"
+                ).fetchone()[0]
+            )
+            total_pages = max(1, (total + per_page - 1) // per_page)
+            page = min(page, total_pages)
+            offset = (page - 1) * per_page
+            rows = db.execute(
+                """SELECT t.id,t.kind,t.member_id,t.name,t.bank,t.bankno,t.price,t.count,
+                          t.status,t.created_at,t.handled_at,t.handled_by,
+                          u.nickname,u.name AS member_name
+                   FROM transactions t LEFT JOIN users u ON u.id=t.member_id
+                   WHERE COALESCE(t.is_deleted,0)=0
+                   ORDER BY t.id DESC LIMIT ? OFFSET ?""",
+                (per_page, offset),
+            ).fetchall()
+
+        transactions = []
+        for row in rows:
+            is_withdraw = row["kind"] == "export"
+            raw_status = str(row["status"] or "대기")
+            completed = raw_status in {"완료", "승인"}
+            transactions.append(
+                {
+                    "id": int(row["id"]),
+                    "type": "withdraw" if is_withdraw else "charge",
+                    "typeLabel": "출금" if is_withdraw else "충전",
+                    "memberId": row["member_id"],
+                    "nickname": row["nickname"] or row["member_id"],
+                    "name": row["member_name"] or row["name"] or "-",
+                    "amount": int(row["price"] or 0),
+                    "candy": int(row["count"] or row["price"] or 0),
+                    "account": (
+                        {
+                            "bank": row["bank"] or "",
+                            "number": row["bankno"] or "",
+                            "holder": row["name"] or row["member_name"] or "",
+                        }
+                        if is_withdraw
+                        else None
+                    ),
+                    "status": "완료" if completed else raw_status,
+                    "rawStatus": raw_status,
+                    "pending": raw_status == "대기",
+                    "completed": completed,
+                    "createdAt": row["created_at"],
+                    "handledAt": row["handled_at"] or "",
+                    "handledBy": row["handled_by"] or "",
+                }
+            )
+        return {
+            "transactions": transactions,
+            "page": page,
+            "perPage": per_page,
+            "total": total,
+            "totalPages": total_pages,
+        }
+
+    @staticmethod
+    def transition_transaction(
+        db: sqlite3.Connection,
+        row: sqlite3.Row,
+        target_status: str,
+    ) -> None:
+        previous_status = str(row["status"] or "대기")
+        if previous_status == target_status:
+            return
+        member_id = str(row["member_id"])
+        kind = str(row["kind"])
+        price = int(row["price"] or 0)
+        candy = int(row["count"] or price)
+        wallet = db.execute(
+            "SELECT balance FROM wallets WHERE member_id=?",
+            (member_id,),
+        ).fetchone()
+        current_balance = int(wallet["balance"] or 0) if wallet is not None else 0
+        new_balance = current_balance
+
+        if kind == "export":
+            refunded_states = {"취소", "동결"}
+            was_refunded = previous_status in refunded_states
+            will_be_refunded = target_status in refunded_states
+            if will_be_refunded and not was_refunded:
+                new_balance += price
+            elif was_refunded and not will_be_refunded:
+                if current_balance < price:
+                    raise ValueError("회원 캔디 잔액이 부족해 출금 상태를 변경할 수 없습니다.")
+                new_balance -= price
+        elif kind == "import":
+            credited_states = {"완료", "승인"}
+            was_credited = previous_status in credited_states
+            will_be_credited = target_status in credited_states
+            if will_be_credited and not was_credited:
+                if current_balance + candy > MAX_CANDY_BALANCE:
+                    raise ValueError("충전 후 캔디 잔액이 허용 범위를 초과합니다.")
+                new_balance += candy
+            elif was_credited and not will_be_credited:
+                if current_balance < candy:
+                    raise ValueError("회원 캔디 잔액이 부족해 완료 처리를 롤백할 수 없습니다.")
+                new_balance -= candy
+
+        if new_balance != current_balance:
+            db.execute(
+                """INSERT INTO wallets(member_id,balance) VALUES(?,?)
+                   ON CONFLICT(member_id) DO UPDATE SET balance=excluded.balance""",
+                (member_id, new_balance),
+            )
+            db.execute("UPDATE users SET balance=? WHERE id=?", (new_balance, member_id))
+        handled_at = "" if target_status == "대기" else now_text()
+        db.execute(
+            """UPDATE transactions
+               SET status=?,handled_at=?,handled_by=? WHERE id=?""",
+            (target_status, handled_at, ADMIN_ID, int(row["id"])),
+        )
+
+    def set_transaction_status(self, transaction_id: int, kind: str, status: str) -> dict[str, object]:
+        if kind not in {"import", "export"}:
+            raise ValueError("신청 종류가 올바르지 않습니다.")
+        if status not in {"대기", "동결", "취소", "승인", "완료"}:
+            raise ValueError("변경할 상태가 올바르지 않습니다.")
+        with self.support_db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute(
+                """SELECT id,kind,member_id,price,count,status
+                   FROM transactions
+                   WHERE id=? AND kind=? AND COALESCE(is_deleted,0)=0""",
+                (transaction_id, kind),
+            ).fetchone()
+            if row is None:
+                raise LookupError("신청 내역을 찾을 수 없습니다.")
+            self.transition_transaction(db, row, status)
+            db.commit()
+        return {"ok": True, "id": transaction_id, "status": status}
+
+    def admin_transaction_action(self, data: dict[str, object]) -> dict[str, object]:
+        try:
+            transaction_id = int(data.get("id", 0))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("신청 번호가 올바르지 않습니다.") from exc
+        action = str(data.get("action", "")).strip()
+        if transaction_id <= 0 or action not in {"complete", "cancel", "rollback", "delete"}:
+            raise ValueError("처리할 신청과 작업을 확인해주세요.")
+        with self.support_db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute(
+                """SELECT id,kind,member_id,price,count,status
+                   FROM transactions WHERE id=? AND COALESCE(is_deleted,0)=0""",
+                (transaction_id,),
+            ).fetchone()
+            if row is None:
+                raise LookupError("신청 내역을 찾을 수 없습니다.")
+            previous_status = str(row["status"] or "대기")
+            completed_states = {"완료", "승인"}
+            if action == "complete":
+                if previous_status != "대기":
+                    raise ValueError("대기 상태의 신청만 완료 처리할 수 있습니다.")
+                target_status = "승인" if row["kind"] == "export" else "완료"
+                self.transition_transaction(db, row, target_status)
+            elif action == "cancel":
+                if previous_status != "대기":
+                    raise ValueError("대기 상태의 신청만 취소할 수 있습니다.")
+                target_status = "취소"
+                self.transition_transaction(db, row, target_status)
+            elif action == "rollback":
+                if previous_status not in completed_states:
+                    raise ValueError("완료된 신청만 롤백할 수 있습니다.")
+                target_status = "대기"
+                self.transition_transaction(db, row, target_status)
+            else:
+                if previous_status == "대기":
+                    self.transition_transaction(db, row, "취소")
+                db.execute(
+                    """UPDATE transactions SET is_deleted=1,handled_at=?,handled_by=?
+                       WHERE id=?""",
+                    (now_text(), ADMIN_ID, transaction_id),
+                )
+                target_status = "삭제"
+            db.commit()
+        return {"ok": True, "id": transaction_id, "status": target_status}
+
+    def update_transaction_account(self, data: dict[str, object]) -> dict[str, object]:
+        try:
+            transaction_id = int(data.get("id", 0))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("신청 번호가 올바르지 않습니다.") from exc
+        bank = str(data.get("bank", "")).strip()[:30]
+        account_number = re.sub(r"[^0-9]", "", str(data.get("accountNumber", "")))[:30]
+        holder = str(data.get("holder", "")).strip()[:40]
+        if transaction_id <= 0 or not bank or not 5 <= len(account_number) <= 30 or not holder:
+            raise ValueError("은행, 계좌번호, 예금주를 정확히 입력해주세요.")
+        with self.support_db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute(
+                """SELECT id FROM transactions
+                   WHERE id=? AND kind='export' AND COALESCE(is_deleted,0)=0""",
+                (transaction_id,),
+            ).fetchone()
+            if row is None:
+                raise LookupError("수정할 출금 신청을 찾을 수 없습니다.")
+            db.execute(
+                "UPDATE transactions SET bank=?,bankno=?,name=? WHERE id=?",
+                (bank, account_number, holder, transaction_id),
+            )
+            db.commit()
+        return {"ok": True, "id": transaction_id}
 
     def admin_signup_codes_payload(self) -> dict[str, object]:
         with self.support_db() as db:
@@ -3801,12 +4056,12 @@ class StandaloneHandler(BaseHTTPRequestHandler):
         for child in list(fragment.contents):
             container.append(child)
         if soup.head is not None:
-            style = soup.new_tag("link", rel="stylesheet", href=f"{stylesheet}?v=20260717-chat3")
+            style = soup.new_tag("link", rel="stylesheet", href=f"{stylesheet}?v=20260718-admin1")
             soup.head.append(style)
         if soup.body is not None:
             for dependency in dependency_scripts:
                 soup.body.append(soup.new_tag("script", src=dependency))
-            application_script = soup.new_tag("script", src=f"{script}?v=20260717-chat3")
+            application_script = soup.new_tag("script", src=f"{script}?v=20260718-admin1")
             soup.body.append(application_script)
         return str(soup).encode("utf-8")
 
@@ -3941,6 +4196,9 @@ class StandaloneHandler(BaseHTTPRequestHandler):
             return
         if path == "/api/admin/members":
             self.send_json(self.admin_members_payload(query.get("q", [""])[0]))
+            return
+        if path == "/api/admin/transactions":
+            self.send_json(self.admin_transactions_payload(query))
             return
         if path == "/api/admin/signup-codes":
             self.send_json(self.admin_signup_codes_payload())
@@ -4281,6 +4539,22 @@ class StandaloneHandler(BaseHTTPRequestHandler):
             except sqlite3.IntegrityError:
                 self.send_json({"error": "회원 정보를 저장할 수 없습니다."}, HTTPStatus.CONFLICT)
             return
+        if path == "/api/admin/transactions/action":
+            try:
+                self.send_json(self.admin_transaction_action(data))
+            except ValueError as exc:
+                self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+            except LookupError as exc:
+                self.send_json({"error": str(exc)}, HTTPStatus.NOT_FOUND)
+            return
+        if path == "/api/admin/transactions/account":
+            try:
+                self.send_json(self.update_transaction_account(data))
+            except ValueError as exc:
+                self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+            except LookupError as exc:
+                self.send_json({"error": str(exc)}, HTTPStatus.NOT_FOUND)
+            return
         if path == "/api/admin/signup-codes/create":
             try:
                 self.send_json(self.create_signup_code(data), HTTPStatus.CREATED)
@@ -4549,54 +4823,15 @@ class StandaloneHandler(BaseHTTPRequestHandler):
             status = data.get("status", "")
             kind = data.get("kind", "export")
             if transaction_id > 0 and status in {"대기", "동결", "취소", "승인", "완료"}:
-                with sqlite3.connect(self.db_path) as db:
-                    row = db.execute(
-                        """SELECT member_id,price,count,status FROM transactions
-                           WHERE id=? AND kind=?""",
-                        (transaction_id, kind),
-                    ).fetchone()
-                    if row is not None:
-                        member_id, price, count, previous_status = row
-                        amount = int(count or price)
-                        refunded_states = {"취소", "동결"}
-                        if kind == "export":
-                            if status in refunded_states and previous_status not in refunded_states:
-                                db.execute(
-                                    "UPDATE wallets SET balance=balance+? WHERE member_id=?",
-                                    (price, member_id),
-                                )
-                            elif status not in refunded_states and previous_status in refunded_states:
-                                wallet = db.execute(
-                                    "SELECT balance FROM wallets WHERE member_id=?",
-                                    (member_id,),
-                                ).fetchone()
-                                if wallet is None or int(wallet[0]) < int(price):
-                                    self.send_bytes(
-                                        "잔액이 부족해 상태를 변경할 수 없습니다.".encode("utf-8"),
-                                        "text/plain; charset=utf-8",
-                                        HTTPStatus.CONFLICT,
-                                    )
-                                    return
-                                db.execute(
-                                    "UPDATE wallets SET balance=balance-? WHERE member_id=?",
-                                    (price, member_id),
-                                )
-                        elif kind == "import":
-                            if status == "완료" and previous_status != "완료":
-                                db.execute(
-                                    "UPDATE wallets SET balance=balance+? WHERE member_id=?",
-                                    (amount, member_id),
-                                )
-                            elif previous_status == "완료" and status != "완료":
-                                db.execute(
-                                    "UPDATE wallets SET balance=MAX(0,balance-?) WHERE member_id=?",
-                                    (amount, member_id),
-                                )
-                        db.execute(
-                            "UPDATE transactions SET status=? WHERE id=? AND kind=?",
-                            (status, transaction_id, kind),
-                        )
-                    db.commit()
+                try:
+                    self.set_transaction_status(transaction_id, kind, str(status))
+                except (ValueError, LookupError) as exc:
+                    self.send_bytes(
+                        str(exc).encode("utf-8"),
+                        "text/plain; charset=utf-8",
+                        HTTPStatus.CONFLICT,
+                    )
+                    return
             target = "export_list.php" if kind == "export" else "import_list.php"
             self.send_redirect(f"{ADMIN_PREFIX}/{target}")
             return
@@ -4783,7 +5018,8 @@ class StandaloneHandler(BaseHTTPRequestHandler):
         with sqlite3.connect(self.db_path) as db:
             rows = db.execute(
                 """SELECT id,member_id,name,bank,bankno,price,count,phone,level,status,created_at
-                   FROM transactions WHERE kind=? ORDER BY id DESC""",
+                   FROM transactions
+                   WHERE kind=? AND COALESCE(is_deleted,0)=0 ORDER BY id DESC""",
                 (kind,),
             ).fetchall()
 
@@ -4915,12 +5151,14 @@ class StandaloneHandler(BaseHTTPRequestHandler):
         with sqlite3.connect(self.db_path) as db:
             export_rows = db.execute(
                 """SELECT name,bank,bankno,price,status,created_at FROM transactions
-                   WHERE member_id=? AND kind='export' ORDER BY id DESC""",
+                   WHERE member_id=? AND kind='export' AND COALESCE(is_deleted,0)=0
+                   ORDER BY id DESC""",
                 (current_user,),
             ).fetchall()
             import_rows = db.execute(
                 """SELECT price,count,status,created_at FROM transactions
-                   WHERE member_id=? AND kind='import' ORDER BY id DESC""",
+                   WHERE member_id=? AND kind='import' AND COALESCE(is_deleted,0)=0
+                   ORDER BY id DESC""",
                 (current_user,),
             ).fetchall()
 
