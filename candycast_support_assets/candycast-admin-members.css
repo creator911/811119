@@ -238,19 +238,20 @@
   word-break: keep-all;
 }
 
-.cc-member-table th:nth-child(1), .cc-member-table td:nth-child(1) { width: 8%; }
-.cc-member-table th:nth-child(2), .cc-member-table td:nth-child(2) { width: 7%; }
-.cc-member-table th:nth-child(3), .cc-member-table td:nth-child(3) { width: 7%; }
-.cc-member-table th:nth-child(4), .cc-member-table td:nth-child(4) { width: 7%; }
-.cc-member-table th:nth-child(5), .cc-member-table td:nth-child(5) { width: 9%; }
-.cc-member-table th:nth-child(6), .cc-member-table td:nth-child(6) { width: 6%; }
-.cc-member-table th:nth-child(7), .cc-member-table td:nth-child(7) { width: 6%; }
-.cc-member-table th:nth-child(8), .cc-member-table td:nth-child(8) { width: 8%; }
-.cc-member-table th:nth-child(9), .cc-member-table td:nth-child(9) { width: 6%; }
-.cc-member-table th:nth-child(10), .cc-member-table td:nth-child(10) { width: 9%; }
-.cc-member-table th:nth-child(11), .cc-member-table td:nth-child(11) { width: 7%; }
-.cc-member-table th:nth-child(12), .cc-member-table td:nth-child(12) { width: 7%; }
-.cc-member-table th:nth-child(13), .cc-member-table td:nth-child(13) { width: 13%; }
+.cc-member-table th:nth-child(1), .cc-member-table td:nth-child(1) { width: 7%; }
+.cc-member-table th:nth-child(2), .cc-member-table td:nth-child(2) { width: 6.5%; }
+.cc-member-table th:nth-child(3), .cc-member-table td:nth-child(3) { width: 6.5%; }
+.cc-member-table th:nth-child(4), .cc-member-table td:nth-child(4) { width: 6.5%; }
+.cc-member-table th:nth-child(5), .cc-member-table td:nth-child(5) { width: 8%; }
+.cc-member-table th:nth-child(6), .cc-member-table td:nth-child(6) { width: 5.5%; }
+.cc-member-table th:nth-child(7), .cc-member-table td:nth-child(7) { width: 5.5%; }
+.cc-member-table th:nth-child(8), .cc-member-table td:nth-child(8) { width: 7%; }
+.cc-member-table th:nth-child(9), .cc-member-table td:nth-child(9) { width: 5.5%; }
+.cc-member-table th:nth-child(10), .cc-member-table td:nth-child(10) { width: 7.5%; }
+.cc-member-table th:nth-child(11), .cc-member-table td:nth-child(11) { width: 6.5%; }
+.cc-member-table th:nth-child(12), .cc-member-table td:nth-child(12) { width: 6.5%; }
+.cc-member-table th:nth-child(13), .cc-member-table td:nth-child(13) { width: 10%; }
+.cc-member-table th:nth-child(14), .cc-member-table td:nth-child(14) { width: 11%; }
 
 .cc-member-table input,
 .cc-member-table select {
@@ -288,6 +289,28 @@
   min-height: 28px;
   padding: 0 6px;
   font-size: 10px;
+}
+
+.cc-member-ip {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px;
+  align-items: center;
+}
+
+.cc-member-ip span {
+  overflow: hidden;
+  color: #596273;
+  font-size: 9.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cc-member-ip button {
+  min-width: 38px;
+  min-height: 28px;
+  padding: 0 5px;
+  font-size: 9.5px;
 }
 
 .cc-transaction-section {

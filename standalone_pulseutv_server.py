@@ -10,6 +10,7 @@ import hashlib
 import html
 import hmac
 import io
+import ipaddress
 import json
 import mimetypes
 import os
@@ -41,6 +42,8 @@ ADMIN_PASSWORD_SALT = b""
 ADMIN_PASSWORD_HASH = b""
 ACTIVE_SESSIONS: dict[str, str] = {}
 ACTIVE_SESSION_SEEN: dict[str, float] = {}
+MEMBER_IP_TOUCHES: dict[str, tuple[str, float]] = {}
+BANNED_IPS: frozenset[str] = frozenset()
 OPERATOR_IMAGE_PATH = "/assets/local/candycast_operator.png"
 MEMBER_CHAT_ICON_PATH = "/assets/local/candycast-member-chat.png"
 SHOP_SYMBOL_ASSETS = {
@@ -73,6 +76,7 @@ BALANCE_STATUSES = ("정상", "잔고동결")
 ACCOUNT_STATUSES = ("정상", "계정동결")
 MAX_CANDY_BALANCE = 9_999_999_999
 LOGIN_ERROR_MESSAGE = "아이디 또는 비밀번호가 올바르지 않습니다."
+IP_BAN_MESSAGE = "접속이 제한된 IP입니다. 관리자에게 문의해 주세요."
 ACCOUNT_RESTRICTION_MESSAGE = (
     "회원님의 계정에서 비정상적인 이용 내역이 확인되어 계정이 즉시 이용정지 처리되었습니다. "
     "현재 고객센터를 제외한 모든 서비스 이용이 제한된 상태입니다."
@@ -104,6 +108,28 @@ def query_hash(query: str) -> str:
     pairs = parse_qsl(query, keep_blank_values=True)
     normalized = "&".join(f"{quote(k, safe='')}={quote(v, safe='')}" for k, v in pairs)
     return hashlib.sha1(normalized.encode("utf-8")).hexdigest()[:12]
+
+
+def normalize_ip(value: object) -> str:
+    raw = str(value or "").split(",", 1)[0].strip()
+    if not raw:
+        return ""
+    if raw.startswith("::ffff:"):
+        raw = raw[7:]
+    try:
+        address = ipaddress.ip_address(raw)
+    except ValueError:
+        return ""
+    if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped:
+        return address.ipv4_mapped.compressed
+    return address.compressed
+
+
+def refresh_banned_ips(db_path: Path) -> None:
+    global BANNED_IPS
+    with sqlite3.connect(db_path) as db:
+        rows = db.execute("SELECT ip FROM ip_bans").fetchall()
+    BANNED_IPS = frozenset(filter(None, (normalize_ip(row[0]) for row in rows)))
 
 
 def normalize_profile_image(value: object) -> bytes:
@@ -864,6 +890,8 @@ def init_db(db_path: Path, backup_dir: Path | None, site_dir: Path | None = None
                 profile_image BLOB NOT NULL DEFAULT X'',
                 profile_image_mime TEXT NOT NULL DEFAULT '',
                 profile_image_updated_at TEXT NOT NULL DEFAULT '',
+                last_ip TEXT NOT NULL DEFAULT '',
+                last_ip_at TEXT NOT NULL DEFAULT '',
                 created_at TEXT NOT NULL
             )"""
         )
@@ -878,9 +906,23 @@ def init_db(db_path: Path, backup_dir: Path | None, site_dir: Path | None = None
             "profile_image": "BLOB NOT NULL DEFAULT X''",
             "profile_image_mime": "TEXT NOT NULL DEFAULT ''",
             "profile_image_updated_at": "TEXT NOT NULL DEFAULT ''",
+            "last_ip": "TEXT NOT NULL DEFAULT ''",
+            "last_ip_at": "TEXT NOT NULL DEFAULT ''",
         }.items():
             if column not in user_columns:
                 db.execute(f"ALTER TABLE users ADD COLUMN {column} {definition}")
+        db.execute(
+            """CREATE TABLE IF NOT EXISTS ip_bans (
+                ip TEXT PRIMARY KEY,
+                member_id TEXT NOT NULL DEFAULT '',
+                memo TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                created_by TEXT NOT NULL DEFAULT ''
+            )"""
+        )
+        db.execute(
+            "CREATE INDEX IF NOT EXISTS ip_bans_member_idx ON ip_bans(member_id,created_at DESC)"
+        )
         db.execute(
             "UPDATE users SET display_grade='프리미엄' WHERE display_grade='다이아'"
         )
@@ -2274,9 +2316,9 @@ MEMBERS_ADMIN_MARKUP = """
     <div class="cc-admin-table-wrap">
       <table class="cc-member-table">
         <thead><tr>
-          <th>가입코드</th><th>아이디</th><th>비밀번호</th><th>닉네임</th><th>전화번호</th><th>이름</th><th>권한</th><th>표시등급</th><th>내부등급</th><th>캔디</th><th>잔고(잔고동결)</th><th>계정(계정동결)</th><th>캔디 선물</th>
+          <th>가입코드</th><th>아이디</th><th>비밀번호</th><th>닉네임</th><th>전화번호</th><th>이름</th><th>권한</th><th>표시등급</th><th>내부등급</th><th>캔디</th><th>잔고(잔고동결)</th><th>계정(계정동결)</th><th>캔디 선물</th><th>IP 밴</th>
         </tr></thead>
-        <tbody id="cc-member-rows"><tr><td colspan="13" class="cc-admin-empty">회원 정보를 불러오는 중입니다.</td></tr></tbody>
+        <tbody id="cc-member-rows"><tr><td colspan="14" class="cc-admin-empty">회원 정보를 불러오는 중입니다.</td></tr></tbody>
       </table>
     </div>
   </section>
@@ -2593,6 +2635,68 @@ class StandaloneHandler(BaseHTTPRequestHandler):
     def session_token(self) -> str:
         return self.cookie_value(SESSION_COOKIE)
 
+    def request_ip(self) -> str:
+        return normalize_ip(
+            self.headers.get("CF-Connecting-IP")
+            or self.headers.get("X-Forwarded-For")
+            or (self.client_address[0] if self.client_address else "")
+        )
+
+    def remember_member_ip(self, username: str, force: bool = False) -> None:
+        if not username or username == ADMIN_ID:
+            return
+        address = self.request_ip()
+        if not address:
+            return
+        now_monotonic = time.monotonic()
+        previous = MEMBER_IP_TOUCHES.get(username)
+        if not force and previous and previous[0] == address and now_monotonic - previous[1] < 30:
+            return
+        try:
+            with sqlite3.connect(self.db_path, timeout=5) as db:
+                db.execute(
+                    "UPDATE users SET last_ip=?,last_ip_at=? WHERE id=?",
+                    (address, now_text(), username),
+                )
+                db.commit()
+        except sqlite3.Error:
+            return
+        MEMBER_IP_TOUCHES[username] = (address, now_monotonic)
+
+    def block_banned_request(
+        self,
+        path: str,
+        data: dict[str, object] | None = None,
+    ) -> bool:
+        address = self.request_ip()
+        if not address or address not in BANNED_IPS:
+            return False
+        token = self.session_token()
+        session_user = ACTIVE_SESSIONS.get(token, "") if token else ""
+        if session_user == ADMIN_ID:
+            return False
+        if path == "/bbs/login.php" or path.startswith(
+            ("/assets/", "/img/", "/ftv/", "/css/", "/js/", "/adm/css/", "/adm/js/")
+        ):
+            return False
+        if path == "/bbs/login_check.php" and str((data or {}).get("mb_id", "")).strip() == ADMIN_ID:
+            return False
+        if token:
+            ACTIVE_SESSIONS.pop(token, None)
+            ACTIVE_SESSION_SEEN.pop(token, None)
+        if path.startswith("/api/"):
+            self.send_json({"error": IP_BAN_MESSAGE}, HTTPStatus.FORBIDDEN)
+        else:
+            page = html_page(
+                "접속 제한",
+                "<main style='min-height:100vh;display:grid;place-items:center;background:#f7f8fb'>"
+                "<section style='padding:34px 40px;border:1px solid #dfe3ea;background:#fff;text-align:center'>"
+                "<h1 style='margin:0 0 10px'>접속이 제한되었습니다.</h1>"
+                "<p style='margin:0;color:#697181'>관리자에게 문의해 주세요.</p></section></main>",
+            )
+            self.send_bytes(page, status=HTTPStatus.FORBIDDEN)
+        return True
+
     def current_user(self) -> str:
         token = self.session_token()
         if not token:
@@ -2600,6 +2704,7 @@ class StandaloneHandler(BaseHTTPRequestHandler):
         username = ACTIVE_SESSIONS.get(token, "")
         if username:
             ACTIVE_SESSION_SEEN[token] = time.monotonic()
+            self.remember_member_ip(username)
         return username
 
     def display_name(self, username: str) -> str:
@@ -2757,8 +2862,11 @@ class StandaloneHandler(BaseHTTPRequestHandler):
             rows = db.execute(
                 f"""SELECT u.id,u.signup_code,u.nickname,u.phone,u.name,u.role,
                            u.display_grade,u.internal_grade,u.balance_status,u.account_status,
-                           u.created_at,COALESCE(w.balance,u.balance,0) AS candy
+                           u.created_at,u.last_ip,u.last_ip_at,
+                           CASE WHEN b.ip IS NULL THEN 0 ELSE 1 END AS ip_banned,
+                           COALESCE(w.balance,u.balance,0) AS candy
                     FROM users u LEFT JOIN wallets w ON w.member_id=u.id
+                    LEFT JOIN ip_bans b ON b.ip=u.last_ip
                     {where}
                     ORDER BY u.created_at DESC,u.id ASC LIMIT 1000""",
                 params,
@@ -2782,6 +2890,9 @@ class StandaloneHandler(BaseHTTPRequestHandler):
                 "candy": int(row["candy"] or 0),
                 "balanceStatus": row["balance_status"] if row["balance_status"] in BALANCE_STATUSES else BALANCE_STATUSES[0],
                 "accountStatus": row["account_status"] if row["account_status"] in ACCOUNT_STATUSES else ACCOUNT_STATUSES[0],
+                "lastIp": normalize_ip(row["last_ip"]),
+                "lastIpAt": row["last_ip_at"] or "",
+                "ipBanned": bool(row["ip_banned"]),
                 "createdAt": row["created_at"],
                 "online": row["id"] in online_members,
             }
@@ -3244,6 +3355,7 @@ class StandaloneHandler(BaseHTTPRequestHandler):
                     "UPDATE chat_messages SET member_id=? WHERE member_id=?",
                     "UPDATE chat_messages SET sender_id=? WHERE sender_id=?",
                     "UPDATE chat_messages SET receiver_id=? WHERE receiver_id=?",
+                    "UPDATE ip_bans SET member_id=? WHERE member_id=?",
                 ):
                     db.execute(statement, (member_id, original_id))
             db.execute(
@@ -3256,7 +3368,43 @@ class StandaloneHandler(BaseHTTPRequestHandler):
             for token, active_user in list(ACTIVE_SESSIONS.items()):
                 if active_user == original_id:
                     ACTIVE_SESSIONS[token] = member_id
+            if original_id in MEMBER_IP_TOUCHES:
+                MEMBER_IP_TOUCHES[member_id] = MEMBER_IP_TOUCHES.pop(original_id)
         return {"ok": True, "id": member_id}
+
+    def set_member_ip_ban(self, data: dict[str, object]) -> dict[str, object]:
+        member_id = str(data.get("memberId", "")).strip()[:100]
+        raw_banned = data.get("banned")
+        banned = raw_banned is True or str(raw_banned).lower() in {"1", "true", "on"}
+        with self.support_db() as db:
+            row = db.execute(
+                "SELECT nickname,last_ip FROM users WHERE id=?",
+                (member_id,),
+            ).fetchone()
+            if row is None:
+                raise LookupError("회원을 찾을 수 없습니다.")
+            address = normalize_ip(row["last_ip"])
+            if not address:
+                raise ValueError("기록된 회원 IP가 없습니다.")
+            if banned:
+                db.execute(
+                    """INSERT INTO ip_bans(ip,member_id,memo,created_at,created_by)
+                       VALUES(?,?,?,?,?)
+                       ON CONFLICT(ip) DO UPDATE SET member_id=excluded.member_id,
+                           memo=excluded.memo,created_at=excluded.created_at,
+                           created_by=excluded.created_by""",
+                    (address, member_id, f"{row['nickname'] or member_id} 회원 IP", now_text(), ADMIN_ID),
+                )
+            else:
+                db.execute("DELETE FROM ip_bans WHERE ip=?", (address,))
+            db.commit()
+        refresh_banned_ips(self.db_path)
+        if banned:
+            for token, active_user in list(ACTIVE_SESSIONS.items()):
+                if active_user == member_id:
+                    ACTIVE_SESSIONS.pop(token, None)
+                    ACTIVE_SESSION_SEEN.pop(token, None)
+        return {"ok": True, "ip": address, "banned": banned}
 
     def create_signup_code(self, data: dict[str, object]) -> dict[str, object]:
         code = normalize_signup_code(data.get("code", ""))
@@ -4056,12 +4204,12 @@ class StandaloneHandler(BaseHTTPRequestHandler):
         for child in list(fragment.contents):
             container.append(child)
         if soup.head is not None:
-            style = soup.new_tag("link", rel="stylesheet", href=f"{stylesheet}?v=20260718-admin1")
+            style = soup.new_tag("link", rel="stylesheet", href=f"{stylesheet}?v=20260718-admin2")
             soup.head.append(style)
         if soup.body is not None:
             for dependency in dependency_scripts:
                 soup.body.append(soup.new_tag("script", src=dependency))
-            application_script = soup.new_tag("script", src=f"{script}?v=20260718-admin1")
+            application_script = soup.new_tag("script", src=f"{script}?v=20260718-admin2")
             soup.body.append(application_script)
         return str(soup).encode("utf-8")
 
@@ -4109,6 +4257,8 @@ class StandaloneHandler(BaseHTTPRequestHandler):
             if parsed.query:
                 location = f"{location}?{parsed.query}"
             self.send_redirect(location)
+            return
+        if self.block_banned_request(path):
             return
         legacy_notice = ""
         if path == "/bbs/register_form.php" and query.get("message", [""])[0]:
@@ -4470,6 +4620,8 @@ class StandaloneHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = canonical_admin_path(parsed.path)
         data = self.request_data()
+        if self.block_banned_request(path, data):
+            return
         if path in {"/api/member/profile", "/api/member/profile/delete"}:
             current_user = self.current_user()
             if not current_user or current_user == ADMIN_ID:
@@ -4538,6 +4690,14 @@ class StandaloneHandler(BaseHTTPRequestHandler):
                 self.send_json({"error": str(exc)}, HTTPStatus.NOT_FOUND)
             except sqlite3.IntegrityError:
                 self.send_json({"error": "회원 정보를 저장할 수 없습니다."}, HTTPStatus.CONFLICT)
+            return
+        if path == "/api/admin/members/ip-ban":
+            try:
+                self.send_json(self.set_member_ip_ban(data))
+            except ValueError as exc:
+                self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+            except LookupError as exc:
+                self.send_json({"error": str(exc)}, HTTPStatus.NOT_FOUND)
             return
         if path == "/api/admin/transactions/action":
             try:
@@ -4735,6 +4895,7 @@ class StandaloneHandler(BaseHTTPRequestHandler):
                 token = secrets.token_urlsafe(32)
                 ACTIVE_SESSIONS[token] = username
                 ACTIVE_SESSION_SEEN[token] = time.monotonic()
+                self.remember_member_ip(username, force=True)
                 target = unquote(data.get("url", "/") or "/")
                 if not target.startswith("/") or target.startswith("//"):
                     target = "/"
@@ -5578,6 +5739,7 @@ def main() -> int:
         normalize_admin_brand_tree(site_dir / "adm")
     ensure_local_assets(site_dir)
     init_db(db_path, backup_dir, site_dir)
+    refresh_banned_ips(db_path)
     if args.prepare_only:
         print(site_dir)
         return 0

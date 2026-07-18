@@ -13,6 +13,7 @@
     transactionPerPage: 10,
     transactionTotal: 0,
     transactionTotalPages: 1,
+    memberRefreshPending: false,
   };
 
   async function request(url, options = {}) {
@@ -96,7 +97,7 @@
     if (!state.members.length) {
       const row = document.createElement("tr");
       const cell = document.createElement("td");
-      cell.colSpan = 13;
+      cell.colSpan = 14;
       cell.className = "cc-admin-empty";
       cell.textContent = "등록된 회원이 없습니다.";
       row.append(cell);
@@ -143,6 +144,23 @@
       actions.append(save, gift);
       actionCell.append(actions);
       row.append(actionCell);
+
+      const ipCell = document.createElement("td");
+      const ipWrap = document.createElement("div");
+      ipWrap.className = "cc-member-ip";
+      const ipText = document.createElement("span");
+      ipText.textContent = member.lastIp || "접속 기록 없음";
+      ipText.title = member.lastIpAt ? `${member.lastIp} · ${member.lastIpAt}` : ipText.textContent;
+      const ipButton = document.createElement("button");
+      ipButton.type = "button";
+      ipButton.className = member.ipBanned ? "cc-admin-secondary" : "cc-admin-danger";
+      ipButton.dataset.memberAction = "ip-ban";
+      ipButton.dataset.memberBanned = member.ipBanned ? "1" : "0";
+      ipButton.disabled = !member.lastIp;
+      ipButton.textContent = member.ipBanned ? "해제" : "IP밴";
+      ipWrap.append(ipText, ipButton);
+      ipCell.append(ipWrap);
+      row.append(ipCell);
       body.append(row);
     }
   }
@@ -404,6 +422,31 @@
     }
   }
 
+  async function toggleMemberIpBan(row, button) {
+    const member = state.members.find((item) => item.id === row.dataset.originalId);
+    if (!member?.lastIp) {
+      showToast("기록된 회원 IP가 없습니다.", true);
+      return;
+    }
+    const nextBanned = button.dataset.memberBanned !== "1";
+    const message = nextBanned
+      ? `${member.nickname || member.id} 회원의 ${member.lastIp} IP를 차단할까요?\n같은 IP를 사용하는 일반회원도 접속할 수 없습니다.`
+      : `${member.lastIp} IP 차단을 해제할까요?`;
+    if (!window.confirm(message)) return;
+    button.disabled = true;
+    try {
+      const payload = await request("/api/admin/members/ip-ban", {
+        method: "POST",
+        body: JSON.stringify({ memberId: member.id, banned: nextBanned }),
+      });
+      showToast(payload.banned ? `${payload.ip} IP를 차단했습니다.` : `${payload.ip} IP 차단을 해제했습니다.`);
+      await loadMembers($("#cc-member-search")?.value || "");
+    } catch (error) {
+      showToast(error.message, true);
+      button.disabled = false;
+    }
+  }
+
   function renderCodes(payload) {
     const list = $("#cc-code-list");
     const summary = $("#cc-code-summary");
@@ -574,6 +617,7 @@
       if (!row) return;
       if (memberButton.dataset.memberAction === "save") await saveMember(row, memberButton);
       if (memberButton.dataset.memberAction === "gift") openGift(row);
+      if (memberButton.dataset.memberAction === "ip-ban") await toggleMemberIpBan(row, memberButton);
       return;
     }
     const codeButton = event.target.closest("[data-code-action='toggle']");
@@ -642,6 +686,12 @@
   $("#cc-member-search")?.addEventListener("input", debounce((event) => {
     loadMembers(event.target.value).catch((error) => showToast(error.message, true));
   }));
+  $("#cc-member-rows")?.addEventListener("input", (event) => {
+    event.target.closest("tr")?.classList.add("is-dirty");
+  });
+  $("#cc-member-rows")?.addEventListener("change", (event) => {
+    event.target.closest("tr")?.classList.add("is-dirty");
+  });
   $("#cc-members-refresh")?.addEventListener("click", () => {
     Promise.all([loadMembers($("#cc-member-search")?.value || ""), loadInfluencers(), loadTransactions(state.transactionPage)])
       .then(() => showToast("최신 정보를 불러왔습니다."))
@@ -667,4 +717,14 @@
   if ($("#cc-member-rows")) initialTasks.push(loadMembers(), loadInfluencers(), loadTransactions());
   if ($("#cc-code-list")) initialTasks.push(loadCodes());
   Promise.all(initialTasks).catch((error) => showToast(error.message, true));
+
+  window.setInterval(() => {
+    const rows = $("#cc-member-rows");
+    if (!rows || document.hidden || state.memberRefreshPending) return;
+    if (rows.querySelector("tr.is-dirty, tr.is-saving") || document.activeElement?.closest?.("#cc-member-rows")) return;
+    state.memberRefreshPending = true;
+    loadMembers($("#cc-member-search")?.value || "")
+      .catch((error) => showToast(error.message, true))
+      .finally(() => { state.memberRefreshPending = false; });
+  }, 30000);
 })();
