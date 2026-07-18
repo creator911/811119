@@ -1967,8 +1967,14 @@ def render_dynamic_page(
         for entry in soup.select(".woiej[onclick]"):
             match = re.search(r"openWindow\([^,]*,\s*['\"]([^'\"]+)['\"]\)", entry.get("onclick", ""))
             if match:
-                target = f"/chat/memo_form.php?me_recv_mb_id={quote(match.group(1))}"
-                entry["onclick"] = f"location.href='{target}'"
+                influencer_id = match.group(1).strip()
+                if logged_in:
+                    entry.attrs.pop("onclick", None)
+                    entry["data-cc-open-member-chat"] = "true"
+                    entry["data-influencer-id"] = influencer_id
+                else:
+                    target = f"/chat/memo_form.php?me_recv_mb_id={quote(influencer_id)}"
+                    entry["onclick"] = f"location.href='{target}'"
                 entry["role"] = "button"
                 entry["tabindex"] = "0"
         changed = True
@@ -1997,7 +2003,7 @@ def render_dynamic_page(
             "link",
             id="candycast-member-chat-style",
             rel="stylesheet",
-            href="/assets/local/candycast-member-chat.css?v=20260718-inline1",
+            href="/assets/local/candycast-member-chat.css?v=20260718-inline3",
         )
         soup.head.append(member_chat_style)
         changed = True
@@ -2006,7 +2012,7 @@ def render_dynamic_page(
             "link",
             id="candycast-mobile-style",
             rel="stylesheet",
-            href="/assets/local/candycast-mobile.css?v=20260718-ranking2",
+            href="/assets/local/candycast-mobile.css?v=20260718-shopcolor2",
         )
         soup.head.append(mobile_style)
         changed = True
@@ -2061,7 +2067,7 @@ def render_dynamic_page(
         member_chat_script = soup.new_tag(
             "script",
             id="candycast-member-chat-script",
-            src="/assets/local/candycast-member-chat.js?v=20260718-inline1",
+            src="/assets/local/candycast-member-chat.js?v=20260718-inline3",
             defer=True,
         )
         soup.body.append(member_chat_script)
@@ -3874,8 +3880,10 @@ class StandaloneHandler(BaseHTTPRequestHandler):
                    WHERE member_id=? AND influencer_id=?""",
                 (member_id, influencer_id),
             ).fetchone()
-            if member is None or room is None:
+            if member is None:
                 return None
+            if room is None:
+                self.touch_member_chat_room(db, member_id, influencer_id)
             if mark_read:
                 db.execute(
                     """UPDATE chat_messages SET read_at=?
@@ -5632,8 +5640,8 @@ class StandaloneHandler(BaseHTTPRequestHandler):
         page = page.replace(
             "</head>",
             '<link rel="stylesheet" href="/assets/local/candycast-support.css?v=20260717-chat3">'
-            '<link rel="stylesheet" href="/assets/local/candycast-member-chat.css?v=20260718-inline1">'
-            '<link rel="stylesheet" href="/assets/local/candycast-mobile.css?v=20260718-ranking2">'
+            '<link rel="stylesheet" href="/assets/local/candycast-member-chat.css?v=20260718-inline3">'
+            '<link rel="stylesheet" href="/assets/local/candycast-mobile.css?v=20260718-shopcolor2">'
             '<link rel="stylesheet" href="/assets/local/candycast-restrictions.css"></head>',
         ).replace(
             "</body>",
@@ -5642,7 +5650,7 @@ class StandaloneHandler(BaseHTTPRequestHandler):
             + mobile_navigation_markup(True)
             + '<script src="/assets/local/candycast-image-utils.js" defer></script>'
             + '<script src="/assets/local/candycast-support.js?v=20260717-chat3" defer></script>'
-            + '<script src="/assets/local/candycast-member-chat.js?v=20260718-inline1" defer></script>'
+            + '<script src="/assets/local/candycast-member-chat.js?v=20260718-inline3" defer></script>'
             + '<script src="/assets/local/candycast-mobile.js?v=20260717-audit1" defer></script>'
             + '<script src="/assets/local/candycast-restrictions.js" defer></script></body>',
         )

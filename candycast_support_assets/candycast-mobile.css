@@ -28,6 +28,12 @@ body.cc-page-shop .cc-shop-product .cc-shop-level {
   display: inline;
 }
 
+body.cc-page-shop .cc-shop-product .cc-shop-level,
+body.cc-page-shop .cc-shop-product .cc-shop-level-desktop,
+body.cc-page-shop .cc-shop-product .cc-shop-level-mobile {
+  color: #111 !important;
+}
+
 body.cc-page-shop .cc-shop-product .cc-shop-candy::after {
   content: " + ";
 }

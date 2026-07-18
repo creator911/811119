@@ -379,9 +379,17 @@
     }
   }
 
-  function openDetail(influencerId) {
-    var room = roomCache.get(influencerId);
-    if (!room) return;
+  function openDetail(influencerId, seedRoom) {
+    var room = roomCache.get(influencerId) || seedRoom || {
+      id: influencerId,
+      name: influencerId,
+      nickname: influencerId,
+      image: "/img/no_profile.gif"
+    };
+    room.id = influencerId;
+    root.hidden = false;
+    document.body.classList.add("cc-member-chat-available");
+    setOpen(true);
     activeRoom = room;
     detailSignature = "";
     setDetailHeader(room);
@@ -440,9 +448,9 @@
     if (!rooms.length) {
       list.appendChild(makeText("p", "cc-member-chat-empty", "아직 저장된 개인 채팅이 없습니다."));
     }
-    root.hidden = rooms.length === 0;
-    document.body.classList.toggle("cc-member-chat-available", rooms.length > 0);
-    if (!rooms.length) setOpen(false);
+    root.hidden = rooms.length === 0 && !activeRoom;
+    document.body.classList.toggle("cc-member-chat-available", rooms.length > 0 || Boolean(activeRoom));
+    if (!rooms.length && !activeRoom) setOpen(false);
     setBadge(payload.unread);
   }
 
@@ -598,6 +606,12 @@
   });
 
   document.addEventListener("click", function (event) {
+    var externalRoom = event.target.closest("[data-cc-open-member-chat][data-influencer-id]");
+    if (externalRoom) {
+      event.preventDefault();
+      openDetail(externalRoom.dataset.influencerId);
+      return;
+    }
     if (root.dataset.open === "true" && !root.contains(event.target)) setOpen(false);
     if (
       root.dataset.open === "true" &&
@@ -608,6 +622,15 @@
   }, true);
 
   document.addEventListener("keydown", function (event) {
+    var externalRoom = event.target.closest("[data-cc-open-member-chat][data-influencer-id]");
+    if (
+      externalRoom && (event.key === "Enter" || event.key === " ") &&
+      !event.isComposing && event.keyCode !== 229
+    ) {
+      event.preventDefault();
+      openDetail(externalRoom.dataset.influencerId);
+      return;
+    }
     if (event.key === "Escape" && root.dataset.open === "true") {
       setOpen(false);
       launcher.focus();
