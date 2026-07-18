@@ -102,7 +102,7 @@ def main() -> int:
 
     assert 'id="signup-codes"' not in member_page, "signup-code panel remained on member page"
     assert 'id="cc-transaction-section"' in member_page, "transaction panel missing on member page"
-    assert "/assets/local/candycast-admin-members.js?v=20260718-admin2" in member_page
+    assert "/assets/local/candycast-admin-members.js?v=20260718-admin3" in member_page
     status, transaction_page = api(admin, "GET", "/api/admin/transactions?page=1&per_page=10")
     assert_status(status, 200, "admin transaction list")
     assert transaction_page.get("perPage") == 10 and transaction_page.get("page") == 1

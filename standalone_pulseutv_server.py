@@ -2347,6 +2347,14 @@ MEMBERS_ADMIN_MARKUP = """
         <tbody id="cc-member-rows"><tr><td colspan="14" class="cc-admin-empty">회원 정보를 불러오는 중입니다.</td></tr></tbody>
       </table>
     </div>
+    <div class="cc-transaction-toolbar cc-member-toolbar">
+      <div class="cc-transaction-pager cc-member-pager" id="cc-member-pager" aria-label="회원 목록 페이지"></div>
+      <span class="cc-transaction-total" id="cc-member-total">총 0개</span>
+      <div class="cc-transaction-page-size cc-member-page-size" aria-label="페이지당 회원 표시 개수">
+        <button type="button" data-member-size="10" class="is-active">10개</button>
+        <button type="button" data-member-size="100">100개</button>
+      </div>
+    </div>
   </section>
   <section class="cc-admin-section cc-transaction-section" id="cc-transaction-section">
     <div class="cc-admin-section-head">
@@ -2875,8 +2883,17 @@ class StandaloneHandler(BaseHTTPRequestHandler):
             return BALANCE_RESTRICTION_MESSAGE
         return ""
 
-    def admin_members_payload(self, search: str = "") -> dict[str, object]:
-        term = search.strip()[:80]
+    def admin_members_payload(self, query: dict[str, list[str]]) -> dict[str, object]:
+        term = query.get("q", [""])[0].strip()[:80]
+        try:
+            page = max(1, int(query.get("page", ["1"])[0]))
+        except (TypeError, ValueError):
+            page = 1
+        try:
+            per_page = int(query.get("per_page", ["10"])[0])
+        except (TypeError, ValueError):
+            per_page = 10
+        per_page = 100 if per_page == 100 else 10
         params: list[object] = []
         where = ""
         if term:
@@ -2885,6 +2902,12 @@ class StandaloneHandler(BaseHTTPRequestHandler):
                        OR u.phone LIKE ? OR u.signup_code LIKE ?"""
             params.extend([like, like, like, like, like])
         with self.support_db() as db:
+            total = int(
+                db.execute(f"SELECT COUNT(*) FROM users u {where}", params).fetchone()[0]
+            )
+            total_pages = max(1, (total + per_page - 1) // per_page)
+            page = min(page, total_pages)
+            offset = (page - 1) * per_page
             rows = db.execute(
                 f"""SELECT u.id,u.signup_code,u.nickname,u.phone,u.name,u.role,
                            u.display_grade,u.internal_grade,u.balance_status,u.account_status,
@@ -2894,8 +2917,8 @@ class StandaloneHandler(BaseHTTPRequestHandler):
                     FROM users u LEFT JOIN wallets w ON w.member_id=u.id
                     LEFT JOIN ip_bans b ON b.ip=u.last_ip
                     {where}
-                    ORDER BY u.created_at DESC,u.id ASC LIMIT 1000""",
-                params,
+                    ORDER BY u.created_at DESC,u.id ASC LIMIT ? OFFSET ?""",
+                [*params, per_page, offset],
             ).fetchall()
         now_monotonic = time.monotonic()
         online_members = {
@@ -2926,6 +2949,10 @@ class StandaloneHandler(BaseHTTPRequestHandler):
         ]
         return {
             "members": members,
+            "page": page,
+            "perPage": per_page,
+            "total": total,
+            "totalPages": total_pages,
             "choices": {
                 "roles": [{"value": value, "label": label} for value, label in MEMBER_ROLES.items()],
                 "displayGrades": list(DISPLAY_GRADES),
@@ -4281,12 +4308,12 @@ class StandaloneHandler(BaseHTTPRequestHandler):
         for child in list(fragment.contents):
             container.append(child)
         if soup.head is not None:
-            style = soup.new_tag("link", rel="stylesheet", href=f"{stylesheet}?v=20260718-admin2")
+            style = soup.new_tag("link", rel="stylesheet", href=f"{stylesheet}?v=20260718-admin3")
             soup.head.append(style)
         if soup.body is not None:
             for dependency in dependency_scripts:
                 soup.body.append(soup.new_tag("script", src=dependency))
-            application_script = soup.new_tag("script", src=f"{script}?v=20260718-admin2")
+            application_script = soup.new_tag("script", src=f"{script}?v=20260718-admin3")
             soup.body.append(application_script)
         return str(soup).encode("utf-8")
 
@@ -4422,7 +4449,7 @@ class StandaloneHandler(BaseHTTPRequestHandler):
             self.send_bytes(self.render_member_chat_admin())
             return
         if path == "/api/admin/members":
-            self.send_json(self.admin_members_payload(query.get("q", [""])[0]))
+            self.send_json(self.admin_members_payload(query))
             return
         if path == "/api/admin/transactions":
             self.send_json(self.admin_transactions_payload(query))

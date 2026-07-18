@@ -8,6 +8,10 @@
     choices: null,
     influencers: [],
     selectedInfluencerId: "",
+    memberPage: 1,
+    memberPerPage: 10,
+    memberTotal: 0,
+    memberTotalPages: 1,
     transactions: [],
     transactionPage: 1,
     transactionPerPage: 10,
@@ -165,11 +169,46 @@
     }
   }
 
-  async function loadMembers(search = "") {
-    const payload = await request(`/api/admin/members?q=${encodeURIComponent(search)}`);
+  function renderMemberPager() {
+    const pager = $("#cc-member-pager");
+    const total = $("#cc-member-total");
+    if (!pager || !total) return;
+    pager.replaceChildren();
+    total.textContent = `총 ${formatNumber.format(state.memberTotal)}개`;
+
+    const makePageButton = (label, page, active = false, disabled = false) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.memberPage = String(page);
+      button.textContent = label;
+      button.classList.toggle("is-active", active);
+      button.disabled = disabled;
+      return button;
+    };
+
+    pager.append(makePageButton("이전", state.memberPage - 1, false, state.memberPage <= 1));
+    const start = Math.max(1, Math.min(state.memberPage - 2, state.memberTotalPages - 4));
+    const end = Math.min(state.memberTotalPages, start + 4);
+    for (let page = start; page <= end; page += 1) {
+      pager.append(makePageButton(String(page), page, page === state.memberPage));
+    }
+    pager.append(makePageButton("다음", state.memberPage + 1, false, state.memberPage >= state.memberTotalPages));
+
+    document.querySelectorAll("[data-member-size]").forEach((button) => {
+      button.classList.toggle("is-active", Number(button.dataset.memberSize) === state.memberPerPage);
+    });
+  }
+
+  async function loadMembers(search = "", page = state.memberPage) {
+    const payload = await request(`/api/admin/members?q=${encodeURIComponent(search)}&page=${page}&per_page=${state.memberPerPage}`);
     state.members = payload.members || [];
     state.choices = payload.choices || state.choices;
+    state.memberPage = Number(payload.page || page || 1);
+    state.memberPerPage = Number(payload.perPage || state.memberPerPage || 10);
+    state.memberTotal = Number(payload.total || 0);
+    state.memberTotalPages = Number(payload.totalPages || 1);
     renderMembers();
+    renderMemberPager();
   }
 
   function appendTextCell(row, text, className = "") {
@@ -334,7 +373,7 @@
       showToast("신청 처리가 완료되었습니다.");
       await Promise.all([
         loadTransactions(state.transactionPage),
-        loadMembers($("#cc-member-search")?.value || ""),
+        loadMembers($("#cc-member-search")?.value || "", state.memberPage),
       ]);
     } catch (error) {
       showToast(error.message, true);
@@ -413,7 +452,7 @@
         body: JSON.stringify(collectMemberRow(row)),
       });
       showToast("회원 정보가 저장되었습니다.");
-      await loadMembers($("#cc-member-search")?.value || "");
+      await loadMembers($("#cc-member-search")?.value || "", state.memberPage);
     } catch (error) {
       showToast(error.message, true);
     } finally {
@@ -440,7 +479,7 @@
         body: JSON.stringify({ memberId: member.id, banned: nextBanned }),
       });
       showToast(payload.banned ? `${payload.ip} IP를 차단했습니다.` : `${payload.ip} IP 차단을 해제했습니다.`);
-      await loadMembers($("#cc-member-search")?.value || "");
+      await loadMembers($("#cc-member-search")?.value || "", state.memberPage);
     } catch (error) {
       showToast(error.message, true);
       button.disabled = false;
@@ -577,7 +616,7 @@
       });
       closeGift();
       showToast(`캔디 선물을 보냈습니다. 새 잔고 ${formatNumber.format(payload.balance)}개`);
-      await loadMembers($("#cc-member-search")?.value || "");
+      await loadMembers($("#cc-member-search")?.value || "", state.memberPage);
     } catch (error) {
       showToast(error.message, true);
     } finally {
@@ -684,7 +723,8 @@
 
   $("#cc-gift-bj-search")?.addEventListener("input", (event) => renderGiftInfluencers(event.target.value));
   $("#cc-member-search")?.addEventListener("input", debounce((event) => {
-    loadMembers(event.target.value).catch((error) => showToast(error.message, true));
+    state.memberPage = 1;
+    loadMembers(event.target.value, 1).catch((error) => showToast(error.message, true));
   }));
   $("#cc-member-rows")?.addEventListener("input", (event) => {
     event.target.closest("tr")?.classList.add("is-dirty");
@@ -693,9 +733,25 @@
     event.target.closest("tr")?.classList.add("is-dirty");
   });
   $("#cc-members-refresh")?.addEventListener("click", () => {
-    Promise.all([loadMembers($("#cc-member-search")?.value || ""), loadInfluencers(), loadTransactions(state.transactionPage)])
+    Promise.all([loadMembers($("#cc-member-search")?.value || "", state.memberPage), loadInfluencers(), loadTransactions(state.transactionPage)])
       .then(() => showToast("최신 정보를 불러왔습니다."))
       .catch((error) => showToast(error.message, true));
+  });
+  $("#cc-member-pager")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-member-page]");
+    if (!button || button.disabled) return;
+    loadMembers($("#cc-member-search")?.value || "", Number(button.dataset.memberPage))
+      .catch((error) => showToast(error.message, true));
+  });
+  document.querySelectorAll("[data-member-size]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const size = Number(button.dataset.memberSize) === 100 ? 100 : 10;
+      if (size === state.memberPerPage) return;
+      state.memberPerPage = size;
+      state.memberPage = 1;
+      loadMembers($("#cc-member-search")?.value || "", 1)
+        .catch((error) => showToast(error.message, true));
+    });
   });
   $("#cc-transactions-refresh")?.addEventListener("click", () => {
     loadTransactions(state.transactionPage)
@@ -723,7 +779,7 @@
     if (!rows || document.hidden || state.memberRefreshPending) return;
     if (rows.querySelector("tr.is-dirty, tr.is-saving") || document.activeElement?.closest?.("#cc-member-rows")) return;
     state.memberRefreshPending = true;
-    loadMembers($("#cc-member-search")?.value || "")
+    loadMembers($("#cc-member-search")?.value || "", state.memberPage)
       .catch((error) => showToast(error.message, true))
       .finally(() => { state.memberRefreshPending = false; });
   }, 30000);
