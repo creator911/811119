@@ -68,6 +68,8 @@ SUPPORT_MAX_ATTACHMENT_BYTES = 2 * 1024 * 1024
 PROFILE_MAX_SOURCE_BYTES = 2 * 1024 * 1024
 PROFILE_MAX_SOURCE_PIXELS = 25_000_000
 PROFILE_IMAGE_SIZE = 180
+INFLUENCER_MAIN_IMAGE_SIZE = (640, 360)
+INFLUENCER_PROFILE_IMAGE_SIZE = 180
 PROFILE_FALLBACK_IMAGE = "/img/no_profile.gif"
 PROFILE_MEDIA_PATH = "/media/my-profile.webp"
 DISPLAY_GRADES = tuple(GRADE_BADGE_ASSETS)
@@ -175,6 +177,55 @@ def normalize_profile_image(value: object) -> bytes:
         raise
     except (UnidentifiedImageError, Image.DecompressionBombError, OSError) as exc:
         raise ValueError("손상되었거나 지원하지 않는 이미지입니다.") from exc
+    return output.getvalue()
+
+
+def normalize_admin_image(
+    value: object,
+    size: tuple[int, int],
+    field_name: str = "이미지",
+) -> bytes:
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"{field_name}를 선택해주세요.")
+    match = re.fullmatch(
+        r"data:(image/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=\r\n]+)",
+        value,
+        flags=re.IGNORECASE,
+    )
+    if match is None:
+        raise ValueError(f"{field_name}는 JPG, PNG, WEBP만 등록할 수 있습니다.")
+    try:
+        source = base64.b64decode(match.group(2), validate=True)
+    except (ValueError, binascii.Error) as exc:
+        raise ValueError(f"{field_name} 데이터가 올바르지 않습니다.") from exc
+    if not source:
+        raise ValueError(f"{field_name} 데이터가 비어 있습니다.")
+    if len(source) > PROFILE_MAX_SOURCE_BYTES:
+        raise ValueError(f"{field_name}는 2MB 이하로 등록해주세요.")
+    try:
+        with Image.open(io.BytesIO(source)) as opened:
+            if (opened.format or "").upper() not in {"JPEG", "PNG", "WEBP"}:
+                raise ValueError(f"{field_name}는 JPG, PNG, WEBP만 등록할 수 있습니다.")
+            width, height = opened.size
+            if width < 1 or height < 1 or width * height > PROFILE_MAX_SOURCE_PIXELS:
+                raise ValueError(f"{field_name} 해상도가 너무 큽니다.")
+            image = ImageOps.exif_transpose(opened)
+            has_alpha = image.mode in {"RGBA", "LA"} or (
+                image.mode == "P" and "transparency" in image.info
+            )
+            image = image.convert("RGBA" if has_alpha else "RGB")
+            image = ImageOps.fit(
+                image,
+                size,
+                method=Image.Resampling.LANCZOS,
+                centering=(0.5, 0.5),
+            )
+            output = io.BytesIO()
+            image.save(output, "WEBP", quality=88, method=6)
+    except ValueError:
+        raise
+    except (UnidentifiedImageError, Image.DecompressionBombError, OSError) as exc:
+        raise ValueError(f"{field_name}가 손상되었거나 지원하지 않는 이미지입니다.") from exc
     return output.getvalue()
 
 
@@ -939,6 +990,36 @@ def init_db(db_path: Path, backup_dir: Path | None, site_dir: Path | None = None
             "ON users(signup_code,created_at DESC)"
         )
         db.execute(
+            """CREATE TABLE IF NOT EXISTS influencer_profiles (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL DEFAULT '',
+                nickname TEXT NOT NULL DEFAULT '',
+                theme TEXT NOT NULL DEFAULT '',
+                viewer_count TEXT NOT NULL DEFAULT '',
+                main_image BLOB NOT NULL DEFAULT X'',
+                main_image_updated_at TEXT NOT NULL DEFAULT '',
+                profile_image BLOB NOT NULL DEFAULT X'',
+                profile_image_updated_at TEXT NOT NULL DEFAULT '',
+                updated_at TEXT NOT NULL DEFAULT ''
+            )"""
+        )
+        influencer_columns = {
+            row[1] for row in db.execute("PRAGMA table_info(influencer_profiles)").fetchall()
+        }
+        for column, definition in {
+            "title": "TEXT NOT NULL DEFAULT ''",
+            "nickname": "TEXT NOT NULL DEFAULT ''",
+            "theme": "TEXT NOT NULL DEFAULT ''",
+            "viewer_count": "TEXT NOT NULL DEFAULT ''",
+            "main_image": "BLOB NOT NULL DEFAULT X''",
+            "main_image_updated_at": "TEXT NOT NULL DEFAULT ''",
+            "profile_image": "BLOB NOT NULL DEFAULT X''",
+            "profile_image_updated_at": "TEXT NOT NULL DEFAULT ''",
+            "updated_at": "TEXT NOT NULL DEFAULT ''",
+        }.items():
+            if column not in influencer_columns:
+                db.execute(f"ALTER TABLE influencer_profiles ADD COLUMN {column} {definition}")
+        db.execute(
             """CREATE TABLE IF NOT EXISTS signup_codes (
                 code TEXT PRIMARY KEY,
                 label TEXT NOT NULL DEFAULT '',
@@ -1655,6 +1736,7 @@ def render_dynamic_page(
     account_status: str = "정상",
     display_grade: str = DISPLAY_GRADES[0],
     profile_image_url: str = PROFILE_FALLBACK_IMAGE,
+    influencer_profiles: dict[str, dict[str, str]] | None = None,
 ) -> bytes:
     text = read_text(page_path)
     member_value = "1" if logged_in else ""
@@ -1968,6 +2050,38 @@ def render_dynamic_page(
             match = re.search(r"openWindow\([^,]*,\s*['\"]([^'\"]+)['\"]\)", entry.get("onclick", ""))
             if match:
                 influencer_id = match.group(1).strip()
+                profile = (influencer_profiles or {}).get(influencer_id)
+                card = entry.find_parent(class_="mvdfk")
+                if profile is not None and card is not None:
+                    title_node = card.select_one(".mjyehn")
+                    nickname_node = card.select_one(".lpkojhg")
+                    image_node = card.select_one(".zxcmnv img")
+                    info_node = card.select_one(".uejdh")
+                    if title_node is not None:
+                        title_node.clear()
+                        title_node.string = profile.get("name", "") or profile.get("nickname", "") or influencer_id
+                    if nickname_node is not None:
+                        nickname_node.clear()
+                        nickname_node.append(profile.get("nickname", "") or profile.get("name", "") or influencer_id)
+                        viewer_count = profile.get("viewerCount", "")
+                        if viewer_count:
+                            count_node = soup.new_tag("span")
+                            count_node["class"] = "llooiik"
+                            count_node.string = viewer_count
+                            nickname_node.append(count_node)
+                    if image_node is not None:
+                        image_node["src"] = profile.get("mainImage", "") or profile.get("image", "") or "/img/no_profile.gif"
+                        image_node["alt"] = f"{profile.get('name', '') or profile.get('nickname', '') or influencer_id} 메인사진"
+                    theme = profile.get("theme", "")
+                    theme_node = card.select_one(".jejhdh")
+                    if theme:
+                        if theme_node is None and info_node is not None:
+                            theme_node = soup.new_tag("div")
+                            theme_node["class"] = "jejhdh"
+                            info_node.append(theme_node)
+                        if theme_node is not None:
+                            theme_node.clear()
+                            theme_node.string = theme
                 if logged_in:
                     entry.attrs.pop("onclick", None)
                     entry["data-cc-open-member-chat"] = "true"
@@ -2130,6 +2244,7 @@ def render_dynamic_home(
     account_status: str = "정상",
     display_grade: str = DISPLAY_GRADES[0],
     profile_image_url: str = PROFILE_FALLBACK_IMAGE,
+    influencer_profiles: dict[str, dict[str, str]] | None = None,
 ) -> bytes:
     return render_dynamic_page(
         index_path,
@@ -2141,6 +2256,7 @@ def render_dynamic_home(
         account_status=account_status,
         display_grade=display_grade,
         profile_image_url=profile_image_url,
+        influencer_profiles=influencer_profiles,
     )
 
 
@@ -2236,6 +2352,10 @@ def normalize_admin_html(text: str) -> str:
     if tnb is not None:
         nav_items = (
             (
+                "cc-admin-bj-nav",
+                f'<li class="tnb_li" id="cc-admin-bj-nav"><a href="{ADMIN_PREFIX}/bj">BJ변경</a></li>',
+            ),
+            (
                 "cc-admin-members-nav",
                 f'<li class="tnb_li" id="cc-admin-members-nav"><a href="{ADMIN_PREFIX}/members">회원관리</a></li>',
             ),
@@ -2327,6 +2447,51 @@ SUPPORT_ADMIN_MARKUP = """
       <div class="cc-support-preview-messages" id="cc-support-preview-messages"><div class="cc-support-staff-empty">회원 화면 미리보기</div></div>
     </aside>
   </div>
+</div>
+"""
+
+
+BJ_ADMIN_MARKUP = """
+<div class="cc-admin-members cc-admin-bj">
+  <header class="cc-admin-page-head">
+    <div><h1>BJ 변경</h1><p>채팅 리스트와 개인채팅에 표시되는 BJ 프로필을 관리합니다.</p></div>
+    <button type="button" class="cc-admin-secondary" id="cc-bj-refresh">새로고침</button>
+  </header>
+  <section class="cc-admin-section cc-bj-section">
+    <div class="cc-admin-section-head">
+      <div><h2>비제이 변경</h2><p>왼쪽에서 BJ를 선택하고 메인사진, 프로필사진, 제목, 닉네임, 테마, 라이브인원수를 저장하세요.</p></div>
+      <label class="cc-member-search"><span>BJ 검색</span><input type="search" id="cc-bj-search" placeholder="아이디, 제목, 닉네임 검색"></label>
+    </div>
+    <div class="cc-bj-editor-grid">
+      <aside class="cc-bj-list" id="cc-bj-list" aria-label="BJ 목록"><p class="cc-admin-empty">BJ 목록을 불러오는 중입니다.</p></aside>
+      <form class="cc-bj-form" id="cc-bj-form">
+        <input type="hidden" name="id">
+        <div class="cc-bj-preview-row">
+          <label class="cc-bj-image-field">
+            <span>메인사진</span>
+            <img id="cc-bj-main-preview" src="/img/no_profile.gif" alt="메인사진 미리보기">
+            <input type="file" id="cc-bj-main-image" accept="image/jpeg,image/png,image/webp">
+          </label>
+          <label class="cc-bj-image-field is-profile">
+            <span>프로필사진</span>
+            <img id="cc-bj-profile-preview" src="/img/no_profile.gif" alt="프로필사진 미리보기">
+            <input type="file" id="cc-bj-profile-image" accept="image/jpeg,image/png,image/webp">
+          </label>
+        </div>
+        <div class="cc-bj-fields">
+          <label>제목<input name="title" maxlength="80" required></label>
+          <label>닉네임<input name="nickname" maxlength="40" required></label>
+          <label>테마<input name="theme" maxlength="80" placeholder="예: 소통, 노래, 댄스"></label>
+          <label>라이브인원수<input name="viewerCount" maxlength="20" placeholder="예: 여2/2, 28명"></label>
+        </div>
+        <p class="cc-bj-help">저장하면 공개 채팅리스트, 회원 개인채팅, 관리자 개인채팅의 BJ 정보가 같은 값으로 표시됩니다.</p>
+        <div class="cc-admin-modal-actions">
+          <button type="submit" class="cc-admin-primary" disabled>저장</button>
+        </div>
+      </form>
+    </div>
+  </section>
+  <div class="cc-admin-toast" id="cc-admin-toast" role="status" aria-live="polite" hidden></div>
 </div>
 """
 
@@ -2588,9 +2753,11 @@ def member_chat_profiles(chatlist_path: Path) -> dict[str, dict[str, str]]:
 
         title_node = card.select_one(".mjyehn")
         nickname_node = card.select_one(".lpkojhg")
+        viewer_text = ""
         if nickname_node is not None:
             participant_count = nickname_node.select_one(".llooiik")
             if participant_count is not None:
+                viewer_text = participant_count.get_text(" ", strip=True)
                 participant_count.decompose()
         image_node = card.select_one(".zxcmnv img")
         room_title = title_node.get_text(" ", strip=True) if title_node else ""
@@ -2603,6 +2770,10 @@ def member_chat_profiles(chatlist_path: Path) -> dict[str, dict[str, str]]:
             "name": room_title or nickname or influencer_id,
             "nickname": nickname or room_title or influencer_id,
             "image": image_src,
+            "mainImage": image_src,
+            "profileImage": image_src,
+            "theme": "",
+            "viewerCount": viewer_text,
         }
 
     _MEMBER_CHAT_PROFILE_CACHE.clear()
@@ -3208,7 +3379,7 @@ class StandaloneHandler(BaseHTTPRequestHandler):
 
     def admin_influencers_payload(self, search: str = "") -> dict[str, object]:
         term = search.strip().casefold()[:80]
-        profiles = member_chat_profiles(self.root / "chatlist.php.html")
+        profiles = self.influencer_profiles()
         influencers = []
         for profile in profiles.values():
             haystack = " ".join(
@@ -3219,6 +3390,93 @@ class StandaloneHandler(BaseHTTPRequestHandler):
             influencers.append(dict(profile))
         influencers.sort(key=lambda item: (item.get("name", "").casefold(), item.get("id", "")))
         return {"influencers": influencers[:1000]}
+
+    def admin_influencer_profiles_payload(self, search: str = "") -> dict[str, object]:
+        return self.admin_influencers_payload(search)
+
+    def update_influencer_profile_from_admin(self, data: dict[str, object]) -> dict[str, object]:
+        influencer_id = str(data.get("id", "")).strip()[:100]
+        if not influencer_id or "/" in influencer_id or influencer_id.startswith("live:"):
+            raise ValueError("BJ 정보가 올바르지 않습니다.")
+        base_profiles = member_chat_profiles(self.root / "chatlist.php.html")
+        if influencer_id not in base_profiles:
+            raise LookupError("선택한 BJ를 찾을 수 없습니다.")
+        title = str(data.get("title", "")).strip()[:80]
+        nickname = str(data.get("nickname", "")).strip()[:40]
+        theme = str(data.get("theme", "")).strip()[:80]
+        viewer_count = str(data.get("viewerCount", "")).strip()[:20]
+        if not title:
+            raise ValueError("제목을 입력해주세요.")
+        if not nickname:
+            raise ValueError("닉네임을 입력해주세요.")
+
+        main_image = data.get("mainImage")
+        profile_image = data.get("profileImage")
+        update_main = isinstance(main_image, str) and bool(main_image)
+        update_profile = isinstance(profile_image, str) and bool(profile_image)
+        main_bytes = (
+            normalize_admin_image(main_image, INFLUENCER_MAIN_IMAGE_SIZE, "메인사진")
+            if update_main
+            else None
+        )
+        profile_bytes = (
+            normalize_admin_image(
+                profile_image,
+                (INFLUENCER_PROFILE_IMAGE_SIZE, INFLUENCER_PROFILE_IMAGE_SIZE),
+                "프로필사진",
+            )
+            if update_profile
+            else None
+        )
+        updated_at = now_text()
+        with self.support_db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            db.execute(
+                """INSERT INTO influencer_profiles(id,title,nickname,theme,viewer_count,updated_at)
+                   VALUES(?,?,?,?,?,?)
+                   ON CONFLICT(id) DO UPDATE SET
+                     title=excluded.title,
+                     nickname=excluded.nickname,
+                     theme=excluded.theme,
+                     viewer_count=excluded.viewer_count,
+                     updated_at=excluded.updated_at""",
+                (influencer_id, title, nickname, theme, viewer_count, updated_at),
+            )
+            if main_bytes is not None:
+                db.execute(
+                    """UPDATE influencer_profiles
+                       SET main_image=?,main_image_updated_at=?,updated_at=?
+                       WHERE id=?""",
+                    (main_bytes, updated_at, updated_at, influencer_id),
+                )
+            if profile_bytes is not None:
+                db.execute(
+                    """UPDATE influencer_profiles
+                       SET profile_image=?,profile_image_updated_at=?,updated_at=?
+                       WHERE id=?""",
+                    (profile_bytes, updated_at, updated_at, influencer_id),
+                )
+            db.commit()
+        return {"ok": True, "profile": self.member_chat_profile(influencer_id)}
+
+    def send_influencer_image(self, influencer_id: str, image_kind: str) -> None:
+        if not influencer_id or "/" in influencer_id or image_kind not in {"main", "profile"}:
+            self.send_error(HTTPStatus.NOT_FOUND)
+            return
+        column = "main_image" if image_kind == "main" else "profile_image"
+        with self.support_db() as db:
+            row = db.execute(
+                f"SELECT {column} AS image FROM influencer_profiles WHERE id=?",
+                (influencer_id,),
+            ).fetchone()
+        if row is None or not row["image"]:
+            self.send_error(HTTPStatus.NOT_FOUND)
+            return
+        self.send_bytes(
+            bytes(row["image"]),
+            "image/webp",
+            headers={"Cache-Control": "private, max-age=31536000, immutable"},
+        )
 
     def admin_member_chat_rooms_payload(self, search: str = "") -> dict[str, object]:
         term = search.strip()[:80]
@@ -3282,7 +3540,7 @@ class StandaloneHandler(BaseHTTPRequestHandler):
         influencer_id: str,
         mark_read: bool = True,
     ) -> dict[str, object] | None:
-        profiles = member_chat_profiles(self.root / "chatlist.php.html")
+        profiles = self.influencer_profiles()
         profile = profiles.get(influencer_id)
         if profile is None:
             return None
@@ -3508,7 +3766,7 @@ class StandaloneHandler(BaseHTTPRequestHandler):
             raise ValueError("메시지를 입력해주세요.")
         if not 1 <= amount <= MAX_CANDY_BALANCE:
             raise ValueError("캔디 갯수는 1부터 9,999,999,999까지 입력할 수 있습니다.")
-        profiles = member_chat_profiles(self.root / "chatlist.php.html")
+        profiles = self.influencer_profiles()
         if influencer_id not in profiles:
             raise ValueError("선택한 BJ를 찾을 수 없습니다.")
         created_at = now_text()
@@ -3551,7 +3809,7 @@ class StandaloneHandler(BaseHTTPRequestHandler):
         influencer_id = str(data.get("influencerId", "")).strip()[:100]
         if not member_id or not influencer_id:
             raise ValueError("회원과 보내는 BJ를 선택해주세요.")
-        profiles = member_chat_profiles(self.root / "chatlist.php.html")
+        profiles = self.influencer_profiles()
         if influencer_id not in profiles:
             raise ValueError("선택한 BJ를 찾을 수 없습니다.")
         with self.support_db() as db:
@@ -3595,8 +3853,60 @@ class StandaloneHandler(BaseHTTPRequestHandler):
         db.execute("PRAGMA foreign_keys=ON")
         return db
 
+    def influencer_profile_overrides(self) -> dict[str, dict[str, str]]:
+        with self.support_db() as db:
+            rows = db.execute(
+                """SELECT id,title,nickname,theme,viewer_count,
+                          LENGTH(main_image) AS main_length,main_image_updated_at,
+                          LENGTH(profile_image) AS profile_length,profile_image_updated_at,
+                          updated_at
+                   FROM influencer_profiles"""
+            ).fetchall()
+        overrides: dict[str, dict[str, str]] = {}
+        for row in rows:
+            influencer_id = str(row["id"])
+            main_updated = row["main_image_updated_at"] or ""
+            profile_updated = row["profile_image_updated_at"] or ""
+            overrides[influencer_id] = {
+                "id": influencer_id,
+                "name": row["title"] or "",
+                "nickname": row["nickname"] or "",
+                "theme": row["theme"] or "",
+                "viewerCount": row["viewer_count"] or "",
+                "updatedAt": row["updated_at"] or "",
+            }
+            if int(row["main_length"] or 0) > 0 and main_updated:
+                overrides[influencer_id]["mainImage"] = (
+                    f"/media/influencer/{quote(influencer_id, safe='')}/main.webp?v={quote(main_updated, safe='')}"
+                )
+            if int(row["profile_length"] or 0) > 0 and profile_updated:
+                profile_url = (
+                    f"/media/influencer/{quote(influencer_id, safe='')}/profile.webp?v={quote(profile_updated, safe='')}"
+                )
+                overrides[influencer_id]["profileImage"] = profile_url
+                overrides[influencer_id]["image"] = profile_url
+        return overrides
+
+    def influencer_profiles(self) -> dict[str, dict[str, str]]:
+        profiles = {key: dict(value) for key, value in member_chat_profiles(self.root / "chatlist.php.html").items()}
+        for influencer_id, override in self.influencer_profile_overrides().items():
+            base = profiles.get(influencer_id, {"id": influencer_id})
+            merged = dict(base)
+            for field in ("name", "nickname", "theme", "viewerCount", "mainImage", "profileImage", "image", "updatedAt"):
+                value = override.get(field, "")
+                if value:
+                    merged[field] = value
+            if "mainImage" not in merged:
+                merged["mainImage"] = merged.get("image", PROFILE_FALLBACK_IMAGE)
+            if "profileImage" not in merged:
+                merged["profileImage"] = merged.get("image", PROFILE_FALLBACK_IMAGE)
+            if "image" not in merged:
+                merged["image"] = merged.get("profileImage", PROFILE_FALLBACK_IMAGE)
+            profiles[influencer_id] = merged
+        return profiles
+
     def member_chat_profile(self, influencer_id: str) -> dict[str, str]:
-        profiles = member_chat_profiles(self.root / "chatlist.php.html")
+        profiles = self.influencer_profiles()
         profile = profiles.get(influencer_id)
         if profile is not None:
             return profile
@@ -3606,6 +3916,10 @@ class StandaloneHandler(BaseHTTPRequestHandler):
             "name": display_name or influencer_id,
             "nickname": display_name or influencer_id,
             "image": "/img/no_profile.gif",
+            "mainImage": "/img/no_profile.gif",
+            "profileImage": "/img/no_profile.gif",
+            "theme": "",
+            "viewerCount": "",
         }
 
     @staticmethod
@@ -3697,7 +4011,7 @@ class StandaloneHandler(BaseHTTPRequestHandler):
         data: dict[str, object],
     ) -> dict[str, object]:
         influencer_id = str(data.get("influencerId", "")).strip()[:100]
-        profiles = member_chat_profiles(self.root / "chatlist.php.html")
+        profiles = self.influencer_profiles()
         if not influencer_id or influencer_id not in profiles:
             raise ValueError("선택한 BJ를 찾을 수 없습니다.")
         with self.support_db() as db:
@@ -3893,7 +4207,7 @@ class StandaloneHandler(BaseHTTPRequestHandler):
         influencer_id: str,
         mark_read: bool = True,
     ) -> dict[str, object] | None:
-        profiles = member_chat_profiles(self.root / "chatlist.php.html")
+        profiles = self.influencer_profiles()
         profile = profiles.get(influencer_id)
         if profile is None:
             return None
@@ -4308,12 +4622,12 @@ class StandaloneHandler(BaseHTTPRequestHandler):
         for child in list(fragment.contents):
             container.append(child)
         if soup.head is not None:
-            style = soup.new_tag("link", rel="stylesheet", href=f"{stylesheet}?v=20260718-admin3")
+            style = soup.new_tag("link", rel="stylesheet", href=f"{stylesheet}?v=20260719-bj1")
             soup.head.append(style)
         if soup.body is not None:
             for dependency in dependency_scripts:
                 soup.body.append(soup.new_tag("script", src=dependency))
-            application_script = soup.new_tag("script", src=f"{script}?v=20260718-admin3")
+            application_script = soup.new_tag("script", src=f"{script}?v=20260719-bj1")
             soup.body.append(application_script)
         return str(soup).encode("utf-8")
 
@@ -4324,6 +4638,16 @@ class StandaloneHandler(BaseHTTPRequestHandler):
             MEMBERS_ADMIN_MARKUP,
             "/assets/local/candycast-admin-members.css",
             "/assets/local/candycast-admin-members.js",
+        )
+
+    def render_bj_admin(self) -> bytes:
+        return self.render_admin_application(
+            "BJ 변경",
+            "cc-bj-admin-page",
+            BJ_ADMIN_MARKUP,
+            "/assets/local/candycast-admin-members.css",
+            "/assets/local/candycast-admin-bj.js",
+            ("/assets/local/candycast-image-utils.js",),
         )
 
     def render_partners_admin(self) -> bytes:
@@ -4423,6 +4747,9 @@ class StandaloneHandler(BaseHTTPRequestHandler):
         }:
             self.send_redirect(f"{ADMIN_PREFIX}/members")
             return
+        if path == f"{ADMIN_PREFIX}/bj":
+            self.send_bytes(self.render_bj_admin())
+            return
         if path in {
             f"{ADMIN_PREFIX}/regist_code.php",
             f"{ADMIN_PREFIX}/regist_code.php.html",
@@ -4459,6 +4786,13 @@ class StandaloneHandler(BaseHTTPRequestHandler):
             return
         if path == "/api/admin/influencers":
             self.send_json(self.admin_influencers_payload(query.get("q", [""])[0]))
+            return
+        if path == "/api/admin/influencer-profiles":
+            self.send_json(self.admin_influencer_profiles_payload(query.get("q", [""])[0]))
+            return
+        media_match = re.fullmatch(r"/media/influencer/([^/]+)/(main|profile)\.webp", path)
+        if media_match:
+            self.send_influencer_image(unquote(media_match.group(1)), media_match.group(2))
             return
         if path == "/api/admin/member-chat/rooms":
             self.send_json(self.admin_member_chat_rooms_payload(query.get("q", [""])[0]))
@@ -4575,6 +4909,7 @@ class StandaloneHandler(BaseHTTPRequestHandler):
                         account_status=str(member_state["account_status"]),
                         display_grade=str(member_state["display_grade"]),
                         profile_image_url=profile_image_url,
+                        influencer_profiles=self.influencer_profiles(),
                     )
                 )
                 return
@@ -4592,6 +4927,7 @@ class StandaloneHandler(BaseHTTPRequestHandler):
                         account_status=str(member_state["account_status"]),
                         display_grade=str(member_state["display_grade"]),
                         profile_image_url=profile_image_url,
+                        influencer_profiles=self.influencer_profiles(),
                     )
                 )
                 return
@@ -4854,6 +5190,14 @@ class StandaloneHandler(BaseHTTPRequestHandler):
         if path == "/api/admin/gifts":
             try:
                 self.send_json(self.send_candy_gift(data), HTTPStatus.CREATED)
+            except ValueError as exc:
+                self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+            except LookupError as exc:
+                self.send_json({"error": str(exc)}, HTTPStatus.NOT_FOUND)
+            return
+        if path == "/api/admin/influencer-profiles/update":
+            try:
+                self.send_json(self.update_influencer_profile_from_admin(data))
             except ValueError as exc:
                 self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
             except LookupError as exc:
@@ -5824,6 +6168,11 @@ class StandaloneHandler(BaseHTTPRequestHandler):
                     profile_image_url=profile_image_url,
                     notice=notice,
                     login_target=login_target,
+                    influencer_profiles=(
+                        self.influencer_profiles()
+                        if candidate.name.startswith("chatlist")
+                        else None
+                    ),
                 )
         elif candidate.suffix.lower() == ".css":
             ctype = "text/css; charset=utf-8"
