@@ -1438,14 +1438,34 @@ def member_chat_widget_markup() -> str:
         <img src="{MEMBER_CHAT_ICON_PATH}" alt=""><i class="cc-member-chat-unread" hidden>0</i>
       </button>
       <section class="cc-member-chat-panel" role="dialog" aria-label="개인 채팅" aria-hidden="true">
-        <header class="cc-member-chat-head">
-          <div><h2>개인 채팅</h2><p>최근 대화</p></div>
-          <button type="button" data-cc-member-chat-action="close" aria-label="개인 채팅 목록 닫기">&times;</button>
-        </header>
-        <div class="cc-member-chat-list" role="list" aria-live="polite">
-          <p class="cc-member-chat-loading">대화 목록을 불러오는 중입니다.</p>
+        <div class="cc-member-chat-list-view">
+          <header class="cc-member-chat-head">
+            <div><h2>개인 채팅</h2><p>최근 대화</p></div>
+            <button type="button" data-cc-member-chat-action="close" aria-label="개인 채팅 목록 닫기">&times;</button>
+          </header>
+          <div class="cc-member-chat-list" role="list" aria-live="polite">
+            <p class="cc-member-chat-loading">대화 목록을 불러오는 중입니다.</p>
+          </div>
+          <a class="cc-member-chat-all" href="/chatlist.php">새 채팅 찾아보기</a>
         </div>
-        <a class="cc-member-chat-all" href="/chatlist.php">새 채팅 찾아보기</a>
+        <div class="cc-member-chat-detail" hidden>
+          <header class="cc-member-chat-detail-head">
+            <button type="button" class="cc-member-chat-back" data-cc-member-chat-action="back" aria-label="개인 채팅 목록으로 돌아가기">&#8249;</button>
+            <img class="cc-member-chat-detail-avatar" src="/img/no_profile.gif" alt="">
+            <div><strong></strong><span></span></div>
+            <button type="button" class="cc-member-chat-detail-close" data-cc-member-chat-action="close" aria-label="개인 채팅 닫기">&times;</button>
+          </header>
+          <ul class="cc-member-chat-messages" aria-live="polite"></ul>
+          <form class="cc-member-chat-composer">
+            <div class="cc-member-chat-attachment-preview" hidden><img alt="첨부 이미지 미리보기"><span></span><button type="button" data-cc-member-chat-action="remove-attachment" aria-label="첨부 이미지 삭제">&times;</button></div>
+            <div class="cc-member-chat-composer-row">
+              <input class="cc-member-chat-file" type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden>
+              <button type="button" class="cc-member-chat-attach" data-cc-member-chat-action="attach" aria-label="사진 첨부">&#128206;</button>
+              <textarea name="message" maxlength="1000" rows="1" placeholder="메시지를 입력하세요" aria-label="메시지"></textarea>
+              <button type="submit" class="cc-member-chat-send">전송</button>
+            </div>
+          </form>
+        </div>
       </section>
     </div>"""
 
@@ -1977,7 +1997,7 @@ def render_dynamic_page(
             "link",
             id="candycast-member-chat-style",
             rel="stylesheet",
-            href="/assets/local/candycast-member-chat.css?v=20260717-chat3",
+            href="/assets/local/candycast-member-chat.css?v=20260718-inline1",
         )
         soup.head.append(member_chat_style)
         changed = True
@@ -2041,7 +2061,7 @@ def render_dynamic_page(
         member_chat_script = soup.new_tag(
             "script",
             id="candycast-member-chat-script",
-            src="/assets/local/candycast-member-chat.js?v=20260717-chat3",
+            src="/assets/local/candycast-member-chat.js?v=20260718-inline1",
             defer=True,
         )
         soup.body.append(member_chat_script)
@@ -3199,7 +3219,12 @@ class StandaloneHandler(BaseHTTPRequestHandler):
                                 AND m.deleted_by_member=0
                                 AND m.read_at='') AS unread
                     FROM member_chat_rooms r JOIN users u ON u.id=r.member_id
-                    WHERE r.influencer_id NOT LIKE 'live:%' {where}
+                    WHERE r.influencer_id NOT LIKE 'live:%'
+                      AND EXISTS (
+                          SELECT 1 FROM chat_messages existing_message
+                          WHERE existing_message.member_id=r.member_id
+                            AND existing_message.influencer_id=r.influencer_id
+                      ) {where}
                     ORDER BY r.last_at DESC,r.member_id ASC LIMIT 500""",
                 params,
             ).fetchall()
@@ -3829,6 +3854,50 @@ class StandaloneHandler(BaseHTTPRequestHandler):
             )
         return {"rooms": rooms, "unread": unread_total}
 
+    def member_chat_payload(
+        self,
+        member_id: str,
+        influencer_id: str,
+        mark_read: bool = True,
+    ) -> dict[str, object] | None:
+        profiles = member_chat_profiles(self.root / "chatlist.php.html")
+        profile = profiles.get(influencer_id)
+        if profile is None:
+            return None
+        with self.support_db() as db:
+            member = db.execute(
+                "SELECT id FROM users WHERE id=?",
+                (member_id,),
+            ).fetchone()
+            room = db.execute(
+                """SELECT member_id FROM member_chat_rooms
+                   WHERE member_id=? AND influencer_id=?""",
+                (member_id, influencer_id),
+            ).fetchone()
+            if member is None or room is None:
+                return None
+            if mark_read:
+                db.execute(
+                    """UPDATE chat_messages SET read_at=?
+                       WHERE member_id=? AND influencer_id=?
+                         AND sender_id=? AND receiver_id=? AND read_at=''""",
+                    (now_text(), member_id, influencer_id, influencer_id, member_id),
+                )
+            rows = db.execute(
+                """SELECT id,sender_id,receiver_id,message,
+                          attachment_name,attachment_type,attachment_data,
+                          created_at,read_at,edited_at,deleted_by_member
+                   FROM chat_messages
+                   WHERE member_id=? AND influencer_id=?
+                   ORDER BY id ASC LIMIT 1000""",
+                (member_id, influencer_id),
+            ).fetchall()
+            db.commit()
+        return {
+            "influencer": dict(profile),
+            "messages": [member_chat_message_payload(row, member_id) for row in rows],
+        }
+
     def ensure_support_room(self, db: sqlite3.Connection, member_id: str) -> sqlite3.Row:
         row = db.execute(
             "SELECT * FROM support_rooms WHERE member_id=?",
@@ -4372,6 +4441,24 @@ class StandaloneHandler(BaseHTTPRequestHandler):
             if payload is None:
                 self.send_json(
                     {"error": "회원 또는 BJ를 찾을 수 없습니다."},
+                    HTTPStatus.NOT_FOUND,
+                )
+            else:
+                self.send_json(payload)
+            return
+        if path == "/api/member/chat":
+            if not current_user:
+                self.send_json({"error": "로그인이 필요합니다."}, HTTPStatus.UNAUTHORIZED)
+                return
+            restriction = self.member_action_restriction(current_user)
+            if restriction:
+                self.send_json({"error": restriction}, HTTPStatus.LOCKED)
+                return
+            influencer_id = query.get("influencer_id", [""])[0].strip()[:100]
+            payload = self.member_chat_payload(current_user, influencer_id)
+            if payload is None:
+                self.send_json(
+                    {"error": "개인 채팅방을 찾을 수 없습니다."},
                     HTTPStatus.NOT_FOUND,
                 )
             else:
@@ -5545,7 +5632,7 @@ class StandaloneHandler(BaseHTTPRequestHandler):
         page = page.replace(
             "</head>",
             '<link rel="stylesheet" href="/assets/local/candycast-support.css?v=20260717-chat3">'
-            '<link rel="stylesheet" href="/assets/local/candycast-member-chat.css?v=20260717-chat3">'
+            '<link rel="stylesheet" href="/assets/local/candycast-member-chat.css?v=20260718-inline1">'
             '<link rel="stylesheet" href="/assets/local/candycast-mobile.css?v=20260718-ranking2">'
             '<link rel="stylesheet" href="/assets/local/candycast-restrictions.css"></head>',
         ).replace(
@@ -5555,7 +5642,7 @@ class StandaloneHandler(BaseHTTPRequestHandler):
             + mobile_navigation_markup(True)
             + '<script src="/assets/local/candycast-image-utils.js" defer></script>'
             + '<script src="/assets/local/candycast-support.js?v=20260717-chat3" defer></script>'
-            + '<script src="/assets/local/candycast-member-chat.js?v=20260717-chat3" defer></script>'
+            + '<script src="/assets/local/candycast-member-chat.js?v=20260718-inline1" defer></script>'
             + '<script src="/assets/local/candycast-mobile.js?v=20260717-audit1" defer></script>'
             + '<script src="/assets/local/candycast-restrictions.js" defer></script></body>',
         )

@@ -101,6 +101,11 @@ def main() -> int:
             member_page = body
 
     assert 'id="signup-codes"' not in member_page, "signup-code panel remained on member page"
+    assert 'id="cc-transaction-section"' in member_page, "transaction panel missing on member page"
+    assert "/assets/local/candycast-admin-members.js?v=20260718-admin2" in member_page
+    status, transaction_page = api(admin, "GET", "/api/admin/transactions?page=1&per_page=10")
+    assert_status(status, 200, "admin transaction list")
+    assert transaction_page.get("perPage") == 10 and transaction_page.get("page") == 1
     status, old_code_url, _ = get(admin, "/admin/regist_code.php")
     assert_status(status, 200, "legacy signup-code redirect")
     assert old_code_url.endswith("/admin/partners"), old_code_url
@@ -325,6 +330,33 @@ def main() -> int:
     assert_status(status, 201, "member duplicate send")
     assert duplicate_send.get("duplicate") is True
     assert duplicate_send.get("id") == first_send.get("id")
+
+    status, _, _ = get(
+        member,
+        f"/chat/memo_form.php?me_recv_mb_id={second_influencer['id']}",
+    )
+    assert_status(status, 200, "member opens empty private room")
+    status, empty_rooms = api(member, "GET", "/api/member/chats")
+    assert_status(status, 200, "member retains empty private room")
+    assert any(room.get("id") == second_influencer["id"] for room in empty_rooms.get("rooms", []))
+    status, empty_conversation = api(
+        member,
+        "GET",
+        f"/api/member/chat?influencer_id={second_influencer['id']}",
+    )
+    assert_status(status, 200, "member empty private conversation")
+    assert empty_conversation.get("messages") == []
+    status, admin_rooms_before_message = api(
+        admin,
+        "GET",
+        f"/api/admin/member-chat/rooms?q={member_id}",
+    )
+    assert_status(status, 200, "admin room list before first message")
+    assert not any(
+        room.get("memberId") == member_id
+        and room.get("influencer", {}).get("id") == second_influencer["id"]
+        for room in admin_rooms_before_message.get("rooms", [])
+    )
 
     tiny_png = (
         "data:image/png;base64,"

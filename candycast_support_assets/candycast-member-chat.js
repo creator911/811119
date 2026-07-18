@@ -6,10 +6,27 @@
 
   var launcher = root.querySelector(".cc-member-chat-launcher");
   var panel = root.querySelector(".cc-member-chat-panel");
+  var listView = root.querySelector(".cc-member-chat-list-view");
+  var detailView = root.querySelector(".cc-member-chat-detail");
   var list = root.querySelector(".cc-member-chat-list");
   var badge = root.querySelector(".cc-member-chat-unread");
+  var detailMessages = root.querySelector(".cc-member-chat-messages");
+  var detailForm = root.querySelector(".cc-member-chat-composer");
+  var detailTextarea = detailForm.querySelector("textarea[name=message]");
+  var detailFile = detailForm.querySelector(".cc-member-chat-file");
+  var detailAttach = detailForm.querySelector(".cc-member-chat-attach");
+  var detailSend = detailForm.querySelector(".cc-member-chat-send");
+  var detailPreview = detailForm.querySelector(".cc-member-chat-attachment-preview");
   var pollTimer = 0;
   var loading = false;
+  var detailLoading = false;
+  var detailSending = false;
+  var detailAttachmentBusy = false;
+  var detailAttachmentVersion = 0;
+  var detailAttachment = null;
+  var activeRoom = null;
+  var roomCache = new Map();
+  var detailSignature = "";
 
   function initializeDetailComposer() {
     var form = document.querySelector(".cc-chat-composer[data-influencer-id]");
@@ -188,6 +205,7 @@
     panel.setAttribute("aria-hidden", open ? "false" : "true");
     document.body.classList.toggle("cc-member-chat-open", open);
     if (open) closeSupport();
+    else showRoomList();
   }
 
   function capCount(value) {
@@ -219,10 +237,167 @@
     return node;
   }
 
+  function messageTime(value) {
+    var match = String(value || "").match(/(\d{2}):(\d{2})/);
+    return match ? match[1] + ":" + match[2] : "";
+  }
+
+  function setDetailBusy() {
+    detailAttach.disabled = detailAttachmentBusy || detailSending;
+    detailSend.disabled = detailAttachmentBusy || detailSending;
+  }
+
+  function clearDetailAttachment() {
+    detailAttachmentVersion += 1;
+    detailAttachment = null;
+    detailAttachmentBusy = false;
+    detailFile.value = "";
+    detailPreview.hidden = true;
+    detailPreview.querySelector("img").removeAttribute("src");
+    detailPreview.querySelector("span").textContent = "";
+    setDetailBusy();
+  }
+
+  function showRoomList() {
+    activeRoom = null;
+    detailSignature = "";
+    clearDetailAttachment();
+    detailTextarea.value = "";
+    detailTextarea.style.height = "48px";
+    listView.hidden = false;
+    detailView.hidden = true;
+    root.dataset.view = "list";
+  }
+
+  function setDetailHeader(profile) {
+    var avatar = detailView.querySelector(".cc-member-chat-detail-avatar");
+    avatar.src = profile.image || "/img/no_profile.gif";
+    avatar.alt = (profile.name || profile.nickname || "BJ") + " 프로필";
+    detailView.querySelector(".cc-member-chat-detail-head strong").textContent =
+      profile.name || profile.nickname || profile.id;
+    detailView.querySelector(".cc-member-chat-detail-head span").textContent =
+      profile.nickname || profile.name || profile.id;
+  }
+
+  function makeDetailMessage(item, profile) {
+    var mine = item.sender === "member";
+    var row = document.createElement("li");
+    row.className = mine ? "mine" : "theirs";
+    row.dataset.messageId = item.id;
+    var bubble = document.createElement("div");
+    bubble.className = "cc-member-chat-message-bubble";
+    bubble.appendChild(makeText("strong", "", mine ? "나" : (profile.name || profile.nickname)));
+    if (item.deletedByMember) {
+      bubble.appendChild(makeText("p", "cc-member-chat-deleted", "삭제된 메시지입니다."));
+    } else if (item.message) {
+      bubble.appendChild(makeText("p", "", item.message));
+    }
+    if (!item.deletedByMember && item.attachment && item.attachment.data) {
+      var image = document.createElement("img");
+      image.className = "cc-member-chat-message-image";
+      image.src = item.attachment.data;
+      image.alt = item.attachment.name || "첨부 이미지";
+      bubble.appendChild(image);
+    }
+    if (mine && !item.deletedByMember) {
+      var more = document.createElement("button");
+      more.type = "button";
+      more.className = "cc-member-chat-message-more";
+      more.dataset.ccMemberChatAction = "message-menu";
+      more.setAttribute("aria-label", "메시지 옵션");
+      more.textContent = "⋮";
+      var actions = document.createElement("span");
+      actions.className = "cc-member-chat-message-actions";
+      actions.hidden = true;
+      var remove = document.createElement("button");
+      remove.type = "button";
+      remove.dataset.ccMemberChatAction = "delete-message";
+      remove.dataset.messageId = item.id;
+      remove.textContent = "메시지 삭제";
+      actions.appendChild(remove);
+      bubble.append(more, actions);
+    }
+    var time = document.createElement("time");
+    time.textContent = messageTime(item.createdAt);
+    if (item.editedAt && !item.deletedByMember) {
+      time.appendChild(makeText("small", "cc-member-chat-edited", "수정됨"));
+    }
+    bubble.appendChild(time);
+    row.appendChild(bubble);
+    return row;
+  }
+
+  function renderDetail(payload, forceBottom) {
+    var profile = payload.influencer || {};
+    var items = Array.isArray(payload.messages) ? payload.messages : [];
+    var signature = items.map(function (item) {
+      return [item.id, item.message, item.editedAt, item.deletedByMember].join(":");
+    }).join(",");
+    setDetailHeader(profile);
+    if (signature === detailSignature && !forceBottom) return;
+    var nearBottom = detailMessages.scrollHeight - detailMessages.scrollTop - detailMessages.clientHeight < 80;
+    detailSignature = signature;
+    detailMessages.replaceChildren();
+    items.forEach(function (item) {
+      detailMessages.appendChild(makeDetailMessage(item, profile));
+    });
+    if (!items.length) {
+      detailMessages.appendChild(makeText("li", "cc-member-chat-detail-empty", "첫 메시지를 보내 대화를 시작해보세요."));
+    }
+    if (forceBottom || nearBottom) {
+      window.requestAnimationFrame(function () {
+        detailMessages.scrollTop = detailMessages.scrollHeight;
+      });
+    }
+  }
+
+  async function loadDetail(forceBottom) {
+    if (!activeRoom || document.hidden) return;
+    if (detailLoading) {
+      if (forceBottom) window.setTimeout(function () { loadDetail(true); }, 120);
+      return;
+    }
+    detailLoading = true;
+    var roomId = activeRoom.id;
+    try {
+      var response = await fetch("/api/member/chat?influencer_id=" + encodeURIComponent(roomId), {
+        credentials: "same-origin",
+        headers: { Accept: "application/json" }
+      });
+      var payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "대화를 불러오지 못했습니다.");
+      if (!activeRoom || activeRoom.id !== roomId) return;
+      renderDetail(payload, forceBottom);
+      loadRooms();
+    } catch (error) {
+      if (forceBottom) {
+        window.alert(error.message);
+        showRoomList();
+      }
+    } finally {
+      detailLoading = false;
+    }
+  }
+
+  function openDetail(influencerId) {
+    var room = roomCache.get(influencerId);
+    if (!room) return;
+    activeRoom = room;
+    detailSignature = "";
+    setDetailHeader(room);
+    detailForm.dataset.influencerId = influencerId;
+    listView.hidden = true;
+    detailView.hidden = false;
+    root.dataset.view = "detail";
+    detailMessages.replaceChildren(makeText("li", "cc-member-chat-detail-empty", "대화를 불러오는 중입니다."));
+    loadDetail(true);
+  }
+
   function makeRoom(room) {
     var link = document.createElement("a");
     link.className = "cc-member-chat-row";
     link.href = room.href || "/chatlist.php";
+    link.dataset.influencerId = room.id;
     link.setAttribute("role", "listitem");
 
     var avatar = document.createElement("img");
@@ -256,8 +431,10 @@
 
   function render(payload) {
     var rooms = Array.isArray(payload.rooms) ? payload.rooms : [];
+    roomCache = new Map();
     list.replaceChildren();
     rooms.forEach(function (room) {
+      roomCache.set(room.id, room);
       list.appendChild(makeRoom(room));
     });
     if (!rooms.length) {
@@ -292,12 +469,132 @@
     }
   }
 
+  detailFile.addEventListener("change", function () {
+    var file = detailFile.files && detailFile.files[0];
+    if (!file) return clearDetailAttachment();
+    if (!window.CandyCastImage) {
+      window.alert("이미지 압축기를 불러오지 못했습니다. 페이지를 새로고침해 주세요.");
+      return clearDetailAttachment();
+    }
+    var version = detailAttachmentVersion + 1;
+    detailAttachmentVersion = version;
+    detailAttachmentBusy = true;
+    setDetailBusy();
+    detailPreview.hidden = false;
+    detailPreview.querySelector("img").removeAttribute("src");
+    detailPreview.querySelector("span").textContent = "사진 자동 압축 중...";
+    window.CandyCastImage.compress(file).then(function (result) {
+      if (version !== detailAttachmentVersion) return;
+      detailAttachment = { name: result.name, type: result.type, data: result.data };
+      detailPreview.querySelector("img").src = detailAttachment.data;
+      detailPreview.querySelector("span").textContent = result.label;
+    }).catch(function (error) {
+      if (version !== detailAttachmentVersion) return;
+      window.alert(error.message);
+      clearDetailAttachment();
+    }).finally(function () {
+      if (version === detailAttachmentVersion) {
+        detailAttachmentBusy = false;
+        setDetailBusy();
+      }
+    });
+  });
+
+  detailTextarea.addEventListener("input", function () {
+    detailTextarea.style.height = "48px";
+    detailTextarea.style.height = Math.min(112, detailTextarea.scrollHeight) + "px";
+  });
+
+  detailTextarea.addEventListener("keydown", function (event) {
+    if (event.key === "Enter" && !event.shiftKey && !event.isComposing && event.keyCode !== 229) {
+      event.preventDefault();
+      if (detailForm.requestSubmit) detailForm.requestSubmit();
+    }
+  });
+
+  detailForm.addEventListener("submit", function (event) {
+    event.preventDefault();
+    if (!activeRoom || detailSending) return;
+    if (detailAttachmentBusy) {
+      window.alert("사진 압축이 끝날 때까지 잠시 기다려 주세요.");
+      return;
+    }
+    var message = (detailTextarea.value || "").trim();
+    if (!message && !detailAttachment) return;
+    detailSending = true;
+    setDetailBusy();
+    fetch("/api/member/chat/messages", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        influencerId: activeRoom.id,
+        message: message,
+        attachment: detailAttachment
+      })
+    }).then(async function (response) {
+      var payload = {};
+      try { payload = await response.json(); } catch (_error) { payload = {}; }
+      if (!response.ok) throw new Error(payload.error || "메시지를 전송하지 못했습니다.");
+      detailTextarea.value = "";
+      detailTextarea.style.height = "48px";
+      clearDetailAttachment();
+      detailSignature = "";
+      loadDetail(true);
+      loadRooms();
+    }).catch(function (error) {
+      window.alert(error.message);
+    }).finally(function () {
+      detailSending = false;
+      setDetailBusy();
+    });
+  });
+
   root.addEventListener("click", function (event) {
+    var roomLink = event.target.closest(".cc-member-chat-row[data-influencer-id]");
+    if (roomLink) {
+      event.preventDefault();
+      openDetail(roomLink.dataset.influencerId);
+      return;
+    }
     var action = event.target.closest("[data-cc-member-chat-action]");
     if (!action) return;
     var name = action.getAttribute("data-cc-member-chat-action");
     if (name === "toggle") setOpen(root.dataset.open !== "true");
     if (name === "close") setOpen(false);
+    if (name === "back") {
+      showRoomList();
+      loadRooms();
+    }
+    if (name === "attach") detailFile.click();
+    if (name === "remove-attachment") clearDetailAttachment();
+    if (name === "message-menu") {
+      var menu = action.nextElementSibling;
+      detailMessages.querySelectorAll(".cc-member-chat-message-actions").forEach(function (item) {
+        if (item !== menu) item.hidden = true;
+      });
+      if (menu) menu.hidden = !menu.hidden;
+    }
+    if (name === "delete-message") {
+      if (!activeRoom || !window.confirm("이 메시지를 삭제할까요?")) return;
+      action.disabled = true;
+      fetch("/api/member/chat/messages/delete", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ id: action.dataset.messageId, influencerId: activeRoom.id })
+      }).then(async function (response) {
+        var payload = {};
+        try { payload = await response.json(); } catch (_error) { payload = {}; }
+        if (!response.ok) throw new Error(payload.error || "메시지를 삭제하지 못했습니다.");
+        detailSignature = "";
+        loadDetail(true);
+        loadRooms();
+      }).catch(function (error) {
+        window.alert(error.message);
+        action.disabled = false;
+      });
+    }
   });
 
   document.addEventListener("click", function (event) {
@@ -318,7 +615,10 @@
   });
 
   document.addEventListener("visibilitychange", function () {
-    if (!document.hidden) loadRooms();
+    if (!document.hidden) {
+      loadRooms();
+      loadDetail(false);
+    }
   });
 
   var messages = document.querySelector(".cc-chat-messages");
@@ -327,7 +627,10 @@
   initializeDetailComposer();
 
   loadRooms();
-  pollTimer = window.setInterval(loadRooms, 10000);
+  pollTimer = window.setInterval(function () {
+    loadRooms();
+    loadDetail(false);
+  }, 10000);
   window.addEventListener("pagehide", function () {
     window.clearInterval(pollTimer);
   }, { once: true });
