@@ -854,6 +854,7 @@ body.cc-page-shop .cc-shop-level-mobile {
 
   body.cc-page-shop .cc-shop-level-mobile {
     display: inline;
+    color: #111 !important;
   }
 
   body.cc-page-shop .cc-shop-price {
