@@ -1646,6 +1646,29 @@ def shuffle_direct_children(parent, tag_name: str) -> bool:
     return True
 
 
+def promote_matching_children(parent, tag_name: str, keyword: str) -> bool:
+    term = " ".join(keyword.split()).casefold()
+    if not term:
+        return False
+    children = [child for child in parent.find_all(tag_name, recursive=False)]
+    matched = [
+        child
+        for child in children
+        if term in " ".join(child.stripped_strings).casefold()
+    ]
+    if not matched:
+        return False
+    unmatched = [child for child in children if child not in matched]
+    reordered = matched + unmatched
+    if reordered == children:
+        return False
+    for child in children:
+        child.extract()
+    for child in reordered:
+        parent.append(child)
+    return True
+
+
 def public_page_classes(soup, page_path: Path) -> list[str]:
     name = page_path.name.lower()
     classes = ["cc-public-page"]
@@ -1737,6 +1760,7 @@ def render_dynamic_page(
     display_grade: str = DISPLAY_GRADES[0],
     profile_image_url: str = PROFILE_FALLBACK_IMAGE,
     influencer_profiles: dict[str, dict[str, str]] | None = None,
+    search_keyword: str = "",
 ) -> bytes:
     text = read_text(page_path)
     member_value = "1" if logged_in else ""
@@ -1772,6 +1796,32 @@ def render_dynamic_page(
             changed = True
 
     page_classes = public_page_classes(soup, page_path)
+
+    if "cc-page-home" in page_classes:
+        search_form = soup.select_one("#serchfom")
+        search_input = soup.select_one('#serchfom input[name="keyword"]')
+        search_button = soup.select_one("#serchfom .s-btn")
+        if search_form is not None:
+            search_form["action"] = "/"
+            search_form["method"] = "get"
+            search_form["role"] = "search"
+            changed = True
+        if search_input is not None:
+            search_input["value"] = search_keyword.strip()
+            search_input["autocomplete"] = "off"
+            search_input["aria-label"] = "BJ, 방송 제목 검색"
+            search_input["onkeydown"] = (
+                "if(event.key==='Enter'){event.preventDefault();this.form.submit();return false;}"
+            )
+            changed = True
+        if search_button is not None:
+            search_button.name = "button"
+            search_button.attrs.pop("href", None)
+            search_button.attrs.pop("onclick", None)
+            search_button["type"] = "submit"
+            search_button["aria-label"] = "검색"
+            search_button["style"] = "border:0;background:transparent;padding:0;cursor:pointer;"
+            changed = True
 
     if "cc-page-shop" in page_classes:
         for item in soup.select(".flex-con > ul > li"):
@@ -2042,6 +2092,13 @@ def render_dynamic_page(
         changed = shuffle_direct_children(live_list, "li") or changed
     for chat_list in soup.select(".maindddd"):
         changed = shuffle_direct_children(chat_list, "div") or changed
+    if "cc-page-home" in page_classes and search_keyword.strip():
+        for gnb in soup.select("ul.gnb-floor1"):
+            changed = promote_matching_children(gnb, "li", search_keyword) or changed
+        for wrapper in soup.select(".vedios .swiper-wrapper"):
+            changed = promote_matching_children(wrapper, "div", search_keyword) or changed
+        for live_list in soup.select(".tab1-con > ul"):
+            changed = promote_matching_children(live_list, "li", search_keyword) or changed
     if page_path.name.startswith("chatlist"):
         for balance_row in soup.select(".maindddd .jejhdh"):
             if balance_row.get_text(" ", strip=True).startswith("보유캔디"):
@@ -2245,6 +2302,7 @@ def render_dynamic_home(
     display_grade: str = DISPLAY_GRADES[0],
     profile_image_url: str = PROFILE_FALLBACK_IMAGE,
     influencer_profiles: dict[str, dict[str, str]] | None = None,
+    search_keyword: str = "",
 ) -> bytes:
     return render_dynamic_page(
         index_path,
@@ -2257,6 +2315,7 @@ def render_dynamic_home(
         display_grade=display_grade,
         profile_image_url=profile_image_url,
         influencer_profiles=influencer_profiles,
+        search_keyword=search_keyword,
     )
 
 
@@ -4910,6 +4969,7 @@ class StandaloneHandler(BaseHTTPRequestHandler):
                         display_grade=str(member_state["display_grade"]),
                         profile_image_url=profile_image_url,
                         influencer_profiles=self.influencer_profiles(),
+                        search_keyword=query.get("keyword", [""])[0][:80],
                     )
                 )
                 return
