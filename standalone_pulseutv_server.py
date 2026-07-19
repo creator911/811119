@@ -1669,6 +1669,158 @@ def promote_matching_children(parent, tag_name: str, keyword: str) -> bool:
     return True
 
 
+def normalize_influencer_identity(value: str) -> str:
+    normalized = "".join(character for character in value.casefold() if character.isalnum())
+    return normalized[2:] if normalized.startswith("bj") else normalized
+
+
+def normalize_live_viewer_count(value: object, *, strict: bool = False) -> str:
+    raw = str(value or "").strip().replace(",", "").replace(" ", "")
+    if not raw:
+        return ""
+    if raw.endswith("명"):
+        raw = raw[:-1]
+    if raw.isdigit() and len(raw) <= 7:
+        return f"{int(raw):,}명"
+    if strict:
+        raise ValueError("메인 LIVE 시청자수는 23 또는 23명처럼 숫자로 입력해주세요.")
+    return ""
+
+
+def home_live_profiles(index_path: Path) -> list[dict[str, str]]:
+    if not index_path.is_file():
+        return []
+    try:
+        from bs4 import BeautifulSoup
+    except Exception:
+        return []
+
+    soup = BeautifulSoup(read_text(index_path), "html.parser")
+    profiles: list[dict[str, str]] = []
+    for card in soup.select(".tab1-con > ul > li"):
+        link = card.find("a", href=True, recursive=False)
+        if link is None:
+            continue
+        parsed = urlparse(link.get("href", ""))
+        live_id = parse_qs(parsed.query).get("live_id", [""])[0].strip()
+        if not live_id:
+            continue
+        status = link.find("ul", recursive=False)
+        status_items = status.find_all("li", recursive=False) if status is not None else []
+        viewer_count = status_items[1].get_text(" ", strip=True) if len(status_items) > 1 else ""
+        main_image = link.find("img", recursive=False)
+        title_node = card.select_one(".con > div > strong")
+        nickname_node = card.select_one(".con > div > span")
+        theme_node = card.select_one(".con > div > .flex > span")
+        profile_image = card.select_one(".con > a img")
+        profiles.append(
+            {
+                "liveId": live_id,
+                "name": title_node.get_text(" ", strip=True) if title_node else "",
+                "nickname": nickname_node.get_text(" ", strip=True) if nickname_node else "",
+                "theme": theme_node.get_text(" ", strip=True) if theme_node else "",
+                "viewerCount": viewer_count,
+                "mainImage": main_image.get("src", "") if main_image else "",
+                "profileImage": profile_image.get("src", "") if profile_image else "",
+            }
+        )
+    return profiles
+
+
+def match_home_live_profile(
+    profiles: list[dict[str, str]], room_title: str, nickname: str
+) -> dict[str, str] | None:
+    title_key = normalize_influencer_identity(room_title)
+    nickname_key = normalize_influencer_identity(nickname)
+
+    def unique(candidates: list[dict[str, str]]) -> dict[str, str] | None:
+        return candidates[0] if len(candidates) == 1 else None
+
+    matched = unique(
+        [
+            profile
+            for profile in profiles
+            if nickname_key
+            and normalize_influencer_identity(profile.get("nickname", "")) == nickname_key
+        ]
+    )
+    if matched is not None:
+        return matched
+    matched = unique(
+        [
+            profile
+            for profile in profiles
+            if title_key
+            and title_key
+            in {
+                normalize_influencer_identity(profile.get("name", "")),
+                normalize_influencer_identity(profile.get("nickname", "")),
+            }
+        ]
+    )
+    if matched is not None:
+        return matched
+    if len(nickname_key) < 2:
+        return None
+    return unique(
+        [
+            profile
+            for profile in profiles
+            if (profile_key := normalize_influencer_identity(profile.get("nickname", "")))
+            and min(len(nickname_key), len(profile_key)) >= 2
+            and (nickname_key in profile_key or profile_key in nickname_key)
+        ]
+    )
+
+
+def apply_home_influencer_profiles(soup, profiles: dict[str, dict[str, str]]) -> bool:
+    profiles_by_live_id = {
+        profile.get("liveId", ""): profile
+        for profile in profiles.values()
+        if profile.get("liveId", "")
+    }
+    if not profiles_by_live_id:
+        return False
+    changed = False
+    for card in soup.select(".tab1-con > ul > li, .vedios .swiper-wrapper > div"):
+        link = card.find("a", href=True, recursive=False)
+        if link is None:
+            continue
+        parsed = urlparse(link.get("href", ""))
+        live_id = parse_qs(parsed.query).get("live_id", [""])[0].strip()
+        profile = profiles_by_live_id.get(live_id)
+        if profile is None:
+            continue
+        card["data-cc-influencer-id"] = profile.get("id", "")
+        is_live_card = card.find_parent(class_="tab1-con") is not None
+        main_image = link.find("img", recursive=False)
+        profile_image = card.select_one(".con > a img, .about .img img")
+        title_node = card.select_one(".con > div > strong, .about .con > strong")
+        nickname_node = card.select_one(".con > div > span, .about .con > p")
+        theme_node = card.select_one(".con > div > .flex > span")
+        if main_image is not None and profile.get("mainImage"):
+            main_image["src"] = profile["mainImage"]
+        if profile_image is not None and profile.get("profileImage"):
+            profile_image["src"] = profile["profileImage"]
+        if title_node is not None and profile.get("name"):
+            title_node.clear()
+            title_node.string = profile["name"]
+        if nickname_node is not None and profile.get("nickname"):
+            nickname_node.clear()
+            nickname_node.string = profile["nickname"]
+        if theme_node is not None and profile.get("theme"):
+            theme_node.clear()
+            theme_node.string = profile["theme"]
+        if is_live_card and profile.get("viewerCount"):
+            status = link.find("ul", recursive=False)
+            status_items = status.find_all("li", recursive=False) if status is not None else []
+            if len(status_items) > 1:
+                status_items[1].clear()
+                status_items[1].string = profile["viewerCount"]
+        changed = True
+    return changed
+
+
 def public_page_classes(soup, page_path: Path) -> list[str]:
     name = page_path.name.lower()
     classes = ["cc-public-page"]
@@ -1796,6 +1948,9 @@ def render_dynamic_page(
             changed = True
 
     page_classes = public_page_classes(soup, page_path)
+
+    if "cc-page-home" in page_classes and influencer_profiles:
+        changed = apply_home_influencer_profiles(soup, influencer_profiles) or changed
 
     if "cc-page-home" in page_classes:
         search_form = soup.select_one("#serchfom")
@@ -2118,13 +2273,18 @@ def render_dynamic_page(
                         title_node.clear()
                         title_node.string = profile.get("name", "") or profile.get("nickname", "") or influencer_id
                     if nickname_node is not None:
+                        participant_node = nickname_node.select_one(".llooiik")
+                        participant_text = (
+                            participant_node.get_text(" ", strip=True)
+                            if participant_node is not None
+                            else ""
+                        )
                         nickname_node.clear()
                         nickname_node.append(profile.get("nickname", "") or profile.get("name", "") or influencer_id)
-                        viewer_count = profile.get("viewerCount", "")
-                        if viewer_count:
+                        if participant_text:
                             count_node = soup.new_tag("span")
                             count_node["class"] = "llooiik"
-                            count_node.string = viewer_count
+                            count_node.string = participant_text
                             nickname_node.append(count_node)
                     if image_node is not None:
                         image_node["src"] = profile.get("mainImage", "") or profile.get("image", "") or "/img/no_profile.gif"
@@ -2513,12 +2673,12 @@ SUPPORT_ADMIN_MARKUP = """
 BJ_ADMIN_MARKUP = """
 <div class="cc-admin-members cc-admin-bj">
   <header class="cc-admin-page-head">
-    <div><h1>BJ 변경</h1><p>채팅 리스트와 개인채팅에 표시되는 BJ 프로필을 관리합니다.</p></div>
+    <div><h1>BJ 변경</h1><p>메인 방송과 채팅에 표시되는 BJ 프로필을 관리합니다.</p></div>
     <button type="button" class="cc-admin-secondary" id="cc-bj-refresh">새로고침</button>
   </header>
   <section class="cc-admin-section cc-bj-section">
     <div class="cc-admin-section-head">
-      <div><h2>비제이 변경</h2><p>왼쪽에서 BJ를 선택하고 메인사진, 프로필사진, 제목, 닉네임, 테마, 라이브인원수를 저장하세요.</p></div>
+      <div><h2>비제이 변경</h2><p>왼쪽에서 BJ를 선택하고 메인사진, 프로필사진, 제목, 닉네임, 테마, 메인 LIVE 시청자수를 저장하세요.</p></div>
       <label class="cc-member-search"><span>BJ 검색</span><input type="search" id="cc-bj-search" placeholder="아이디, 제목, 닉네임 검색"></label>
     </div>
     <div class="cc-bj-editor-grid">
@@ -2541,9 +2701,9 @@ BJ_ADMIN_MARKUP = """
           <label>제목<input name="title" maxlength="80" required></label>
           <label>닉네임<input name="nickname" maxlength="40" required></label>
           <label>테마<input name="theme" maxlength="80" placeholder="예: 소통, 노래, 댄스"></label>
-          <label>라이브인원수<input name="viewerCount" maxlength="20" placeholder="예: 여2/2, 28명"></label>
+          <label>메인 LIVE 시청자수<input name="viewerCount" maxlength="10" placeholder="예: 23명"></label>
         </div>
-        <p class="cc-bj-help">저장하면 공개 채팅리스트, 회원 개인채팅, 관리자 개인채팅의 BJ 정보가 같은 값으로 표시됩니다.</p>
+        <p class="cc-bj-help">저장하면 메인 방송, 공개 채팅리스트, 회원 개인채팅, 관리자 개인채팅의 BJ 정보가 같은 값으로 표시됩니다.</p>
         <div class="cc-admin-modal-actions">
           <button type="submit" class="cc-admin-primary" disabled>저장</button>
         </div>
@@ -2783,10 +2943,13 @@ def member_chat_profiles(chatlist_path: Path) -> dict[str, dict[str, str]]:
     if not chatlist_path.is_file():
         return {}
     modified = chatlist_path.stat().st_mtime_ns
+    index_path = chatlist_path.parent / "index.html"
+    home_modified = index_path.stat().st_mtime_ns if index_path.is_file() else 0
     cache_path = str(chatlist_path.resolve())
     if (
         _MEMBER_CHAT_PROFILE_CACHE.get("path") == cache_path
         and _MEMBER_CHAT_PROFILE_CACHE.get("modified") == modified
+        and _MEMBER_CHAT_PROFILE_CACHE.get("home_modified") == home_modified
     ):
         return _MEMBER_CHAT_PROFILE_CACHE.get("profiles", {})  # type: ignore[return-value]
     try:
@@ -2795,6 +2958,7 @@ def member_chat_profiles(chatlist_path: Path) -> dict[str, dict[str, str]]:
         return {}
 
     soup = BeautifulSoup(read_text(chatlist_path), "html.parser")
+    live_profiles = home_live_profiles(index_path)
     profiles: dict[str, dict[str, str]] = {}
     for card in soup.select(".maindddd > .mvdfk"):
         entry = card.select_one(".woiej[onclick]")
@@ -2812,11 +2976,9 @@ def member_chat_profiles(chatlist_path: Path) -> dict[str, dict[str, str]]:
 
         title_node = card.select_one(".mjyehn")
         nickname_node = card.select_one(".lpkojhg")
-        viewer_text = ""
         if nickname_node is not None:
             participant_count = nickname_node.select_one(".llooiik")
             if participant_count is not None:
-                viewer_text = participant_count.get_text(" ", strip=True)
                 participant_count.decompose()
         image_node = card.select_one(".zxcmnv img")
         room_title = title_node.get_text(" ", strip=True) if title_node else ""
@@ -2824,7 +2986,7 @@ def member_chat_profiles(chatlist_path: Path) -> dict[str, dict[str, str]]:
         image_src = image_node.get("src", "") if image_node else ""
         if not image_src.startswith("/") or image_src.startswith("//"):
             image_src = "/img/no_profile.gif"
-        profiles[influencer_id] = {
+        profile = {
             "id": influencer_id,
             "name": room_title or nickname or influencer_id,
             "nickname": nickname or room_title or influencer_id,
@@ -2832,12 +2994,33 @@ def member_chat_profiles(chatlist_path: Path) -> dict[str, dict[str, str]]:
             "mainImage": image_src,
             "profileImage": image_src,
             "theme": "",
-            "viewerCount": viewer_text,
+            "viewerCount": "",
         }
+        live_profile = match_home_live_profile(live_profiles, room_title, nickname)
+        if live_profile is not None:
+            for field in (
+                "liveId",
+                "name",
+                "nickname",
+                "theme",
+                "viewerCount",
+                "mainImage",
+                "profileImage",
+            ):
+                if live_profile.get(field):
+                    profile[field] = live_profile[field]
+            if live_profile.get("profileImage"):
+                profile["image"] = live_profile["profileImage"]
+        profiles[influencer_id] = profile
 
     _MEMBER_CHAT_PROFILE_CACHE.clear()
     _MEMBER_CHAT_PROFILE_CACHE.update(
-        {"path": cache_path, "modified": modified, "profiles": profiles}
+        {
+            "path": cache_path,
+            "modified": modified,
+            "home_modified": home_modified,
+            "profiles": profiles,
+        }
     )
     return profiles
 
@@ -3463,7 +3646,7 @@ class StandaloneHandler(BaseHTTPRequestHandler):
         title = str(data.get("title", "")).strip()[:80]
         nickname = str(data.get("nickname", "")).strip()[:40]
         theme = str(data.get("theme", "")).strip()[:80]
-        viewer_count = str(data.get("viewerCount", "")).strip()[:20]
+        viewer_count = normalize_live_viewer_count(data.get("viewerCount", ""), strict=True)
         if not title:
             raise ValueError("제목을 입력해주세요.")
         if not nickname:
@@ -3931,7 +4114,7 @@ class StandaloneHandler(BaseHTTPRequestHandler):
                 "name": row["title"] or "",
                 "nickname": row["nickname"] or "",
                 "theme": row["theme"] or "",
-                "viewerCount": row["viewer_count"] or "",
+                "viewerCount": normalize_live_viewer_count(row["viewer_count"]),
                 "updatedAt": row["updated_at"] or "",
             }
             if int(row["main_length"] or 0) > 0 and main_updated:
