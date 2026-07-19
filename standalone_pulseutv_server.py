@@ -1780,7 +1780,7 @@ def apply_home_influencer_profiles(soup, profiles: dict[str, dict[str, str]]) ->
         if profile.get("liveId", "")
     }
     if not profiles_by_live_id:
-        return False
+        profiles_by_live_id = {}
     changed = False
     for card in soup.select(".tab1-con > ul > li, .vedios .swiper-wrapper > div"):
         link = card.find("a", href=True, recursive=False)
@@ -1817,6 +1817,67 @@ def apply_home_influencer_profiles(soup, profiles: dict[str, dict[str, str]]) ->
             if len(status_items) > 1:
                 status_items[1].clear()
                 status_items[1].string = profile["viewerCount"]
+        changed = True
+
+    live_list = soup.select_one(".tab1-con > ul")
+    if live_list is None:
+        return changed
+    rendered_ids = {
+        str(card.get("data-cc-influencer-id", "")).strip()
+        for card in live_list.find_all("li", recursive=False)
+    }
+    for profile in profiles.values():
+        influencer_id = str(profile.get("id", "")).strip()
+        if (
+            not influencer_id
+            or profile.get("liveId")
+            or not profile.get("updatedAt")
+            or influencer_id in rendered_ids
+        ):
+            continue
+
+        card = soup.new_tag("li")
+        card["data-cc-influencer-id"] = influencer_id
+        live_link = soup.new_tag(
+            "a", href=f"/live.php?live_id=member-{quote(influencer_id, safe='')}"
+        )
+        main_image = soup.new_tag("img")
+        main_image["src"] = profile.get("mainImage", "") or PROFILE_FALLBACK_IMAGE
+        main_image["alt"] = ""
+        live_link.append(main_image)
+        status = soup.new_tag("ul")
+        live_badge = soup.new_tag("li")
+        live_badge.string = "LIVE"
+        viewer_count = soup.new_tag("li")
+        viewer_count.string = profile.get("viewerCount", "") or "0명"
+        status.extend([live_badge, viewer_count])
+        live_link.append(status)
+        card.append(live_link)
+
+        content = soup.new_tag("div")
+        content["class"] = "con"
+        profile_link = soup.new_tag("a", href="#n")
+        profile_image = soup.new_tag("img")
+        profile_image["src"] = profile.get("profileImage", "") or PROFILE_FALLBACK_IMAGE
+        profile_image["alt"] = ""
+        profile_image["style"] = "height: 40px; width: 40px; object-fit: cover;"
+        profile_link.append(profile_image)
+        content.append(profile_link)
+        details = soup.new_tag("div")
+        title = soup.new_tag("strong")
+        title.string = profile.get("name", "") or profile.get("nickname", "") or influencer_id
+        nickname = soup.new_tag("span")
+        nickname.string = profile.get("nickname", "") or profile.get("name", "") or influencer_id
+        theme_wrap = soup.new_tag("div")
+        theme_wrap["class"] = "flex h-7 flex-wrap gap-1.5"
+        theme = soup.new_tag("span")
+        theme.string = profile.get("theme", "")
+        theme_wrap.append(theme)
+        details.extend([title, nickname, theme_wrap])
+        content.extend([details])
+        card.append(content)
+        live_list.append(card)
+        rendered_ids.add(influencer_id)
         changed = True
     return changed
 
