@@ -4145,6 +4145,32 @@ class StandaloneHandler(BaseHTTPRequestHandler):
             if "image" not in merged:
                 merged["image"] = merged.get("profileImage", PROFILE_FALLBACK_IMAGE)
             profiles[influencer_id] = merged
+
+        latest_override_by_live_id: dict[str, dict[str, str]] = {}
+        for profile in profiles.values():
+            live_id = profile.get("liveId", "")
+            updated_at = profile.get("updatedAt", "")
+            if not live_id or not updated_at:
+                continue
+            current = latest_override_by_live_id.get(live_id)
+            if current is None or updated_at > current.get("updatedAt", ""):
+                latest_override_by_live_id[live_id] = profile
+        for profile in profiles.values():
+            source = latest_override_by_live_id.get(profile.get("liveId", ""))
+            if source is None or source is profile:
+                continue
+            for field in (
+                "name",
+                "nickname",
+                "theme",
+                "viewerCount",
+                "mainImage",
+                "profileImage",
+                "image",
+                "updatedAt",
+            ):
+                if source.get(field):
+                    profile[field] = source[field]
         return profiles
 
     def member_chat_profile(self, influencer_id: str) -> dict[str, str]:
