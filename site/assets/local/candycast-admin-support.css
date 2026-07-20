@@ -11,6 +11,13 @@
   text-decoration: none !important;
 }
 
+#cc-admin-chat-nav > a {
+  position: relative;
+  display: inline-flex !important;
+  align-items: center;
+  gap: 7px;
+}
+
 #cc-admin-support-nav > a::before {
   content: "";
   width: 17px;
@@ -29,6 +36,7 @@
   border-right: 5px solid transparent;
 }
 
+#cc-admin-chat-unread,
 #cc-admin-support-unread {
   display: inline-grid;
   place-items: center;
@@ -43,6 +51,7 @@
   line-height: 20px;
 }
 
+#cc-admin-chat-unread[hidden],
 #cc-admin-support-unread[hidden] { display: none !important; }
 
 .cc-admin-support,

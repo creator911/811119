@@ -2624,7 +2624,7 @@ def normalize_admin_html(text: str) -> str:
             "link",
             id="candycast-admin-support-style",
             rel="stylesheet",
-            href="/assets/local/candycast-admin-support.css?v=20260717-chat3",
+            href="/assets/local/candycast-admin-support.css?v=20260720-alert1",
         )
         soup.head.append(support_style)
 
@@ -2641,7 +2641,7 @@ def normalize_admin_html(text: str) -> str:
             ),
             (
                 "cc-admin-chat-nav",
-                f'<li class="tnb_li" id="cc-admin-chat-nav"><a href="{ADMIN_PREFIX}/chats">개인채팅</a></li>',
+                f'<li class="tnb_li" id="cc-admin-chat-nav"><a href="{ADMIN_PREFIX}/chats">개인채팅 <i id="cc-admin-chat-unread" hidden>0</i></a></li>',
             ),
             (
                 "cc-admin-support-nav",
@@ -2659,7 +2659,7 @@ def normalize_admin_html(text: str) -> str:
         support_script = soup.new_tag(
             "script",
             id="candycast-admin-nav-script",
-            src="/assets/local/candycast-admin-nav.js",
+            src="/assets/local/candycast-admin-nav.js?v=20260720-alert1",
         )
         soup.body.append(support_script)
 
@@ -5201,6 +5201,23 @@ class StandaloneHandler(BaseHTTPRequestHandler):
             with self.support_db() as db:
                 unread = db.execute(
                     "SELECT COALESCE(SUM(staff_unread),0) FROM support_rooms WHERE status='open'"
+                ).fetchone()[0]
+            self.send_json({"unread": int(unread or 0)})
+            return
+        if path == "/api/admin/member-chat/unread":
+            if current_user != ADMIN_ID:
+                self.send_json({"error": "관리자 로그인이 필요합니다."}, HTTPStatus.FORBIDDEN)
+                return
+            with self.support_db() as db:
+                unread = db.execute(
+                    """SELECT COUNT(*)
+                       FROM chat_messages m
+                       JOIN users u ON u.id=m.member_id
+                       WHERE m.influencer_id NOT LIKE 'live:%'
+                         AND m.sender_id=m.member_id
+                         AND m.receiver_id=m.influencer_id
+                         AND m.deleted_by_member=0
+                         AND m.read_at=''"""
                 ).fetchone()[0]
             self.send_json({"unread": int(unread or 0)})
             return
