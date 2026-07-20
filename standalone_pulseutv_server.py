@@ -4346,7 +4346,7 @@ class StandaloneHandler(BaseHTTPRequestHandler):
         with self.support_db() as db:
             db.execute("BEGIN IMMEDIATE")
             member = db.execute("SELECT id FROM users WHERE id=?", (member_id,)).fetchone()
-            if member is None:
+            if member is None and member_id != ADMIN_ID:
                 raise LookupError("회원을 찾을 수 없습니다.")
             payload = self.add_member_chat_message(
                 db,
@@ -4550,7 +4550,7 @@ class StandaloneHandler(BaseHTTPRequestHandler):
                    WHERE member_id=? AND influencer_id=?""",
                 (member_id, influencer_id),
             ).fetchone()
-            if member is None:
+            if member is None and member_id != ADMIN_ID:
                 return None
             if room is None:
                 self.touch_member_chat_room(db, member_id, influencer_id)
@@ -5433,7 +5433,7 @@ class StandaloneHandler(BaseHTTPRequestHandler):
             return
         if path == "/api/member/chat/messages":
             current_user = self.current_user()
-            if not current_user or current_user == ADMIN_ID:
+            if not current_user:
                 self.send_json({"error": "로그인이 필요합니다."}, HTTPStatus.UNAUTHORIZED)
                 return
             restriction = self.member_action_restriction(current_user)
@@ -5452,7 +5452,7 @@ class StandaloneHandler(BaseHTTPRequestHandler):
             return
         if path == "/api/member/chat/messages/delete":
             current_user = self.current_user()
-            if not current_user or current_user == ADMIN_ID:
+            if not current_user:
                 self.send_json({"error": "로그인이 필요합니다."}, HTTPStatus.UNAUTHORIZED)
                 return
             restriction = self.member_action_restriction(current_user)
