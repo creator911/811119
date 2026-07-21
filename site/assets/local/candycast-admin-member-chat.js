@@ -166,7 +166,7 @@
         const bubble = document.createElement("div");
         const sender = document.createElement("strong");
         sender.textContent = item.sender === "influencer"
-          ? payload.influencer.name || payload.influencer.id
+          ? item.senderLabel || payload.influencer.name || payload.influencer.id
           : payload.member.nickname || payload.member.id;
         const text = document.createElement("p");
         text.textContent = item.deletedByMember ? "삭제된 메시지입니다." : (item.message || "");

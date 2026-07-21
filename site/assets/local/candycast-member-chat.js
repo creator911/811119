@@ -286,7 +286,11 @@
     row.dataset.messageId = item.id;
     var bubble = document.createElement("div");
     bubble.className = "cc-member-chat-message-bubble";
-    bubble.appendChild(makeText("strong", "", mine ? "나" : (profile.name || profile.nickname)));
+    bubble.appendChild(makeText(
+      "strong",
+      "",
+      mine ? "나" : (item.senderLabel || profile.name || profile.nickname),
+    ));
     if (item.deletedByMember) {
       bubble.appendChild(makeText("p", "cc-member-chat-deleted", "삭제된 메시지입니다."));
     } else if (item.message) {

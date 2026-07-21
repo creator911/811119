@@ -1049,6 +1049,7 @@ def init_db(db_path: Path, backup_dir: Path | None, site_dir: Path | None = None
                 attachment_data TEXT NOT NULL DEFAULT '',
                 dedupe_key TEXT NOT NULL DEFAULT '',
                 created_minute TEXT NOT NULL DEFAULT '',
+                message_kind TEXT NOT NULL DEFAULT '',
                 created_at TEXT NOT NULL,
                 read_at TEXT NOT NULL DEFAULT '',
                 edited_at TEXT NOT NULL DEFAULT '',
@@ -1068,6 +1069,7 @@ def init_db(db_path: Path, backup_dir: Path | None, site_dir: Path | None = None
             "attachment_data": "TEXT NOT NULL DEFAULT ''",
             "dedupe_key": "TEXT NOT NULL DEFAULT ''",
             "created_minute": "TEXT NOT NULL DEFAULT ''",
+            "message_kind": "TEXT NOT NULL DEFAULT ''",
             "read_at": "TEXT NOT NULL DEFAULT ''",
             "edited_at": "TEXT NOT NULL DEFAULT ''",
             "edited_by": "TEXT NOT NULL DEFAULT ''",
@@ -1219,6 +1221,19 @@ def init_db(db_path: Path, backup_dir: Path | None, site_dir: Path | None = None
         db.execute(
             "CREATE INDEX IF NOT EXISTS candy_gifts_member_created_idx "
             "ON candy_gifts(member_id,created_at DESC,id DESC)"
+        )
+        db.execute(
+            """UPDATE chat_messages
+               SET sender_id=?,message_kind='gift'
+               WHERE message_kind=''
+                 AND EXISTS (
+                   SELECT 1 FROM candy_gifts g
+                   WHERE g.member_id=chat_messages.member_id
+                     AND g.influencer_id=chat_messages.influencer_id
+                     AND g.message=chat_messages.message
+                     AND g.created_at=chat_messages.created_at
+                 )""",
+            (ADMIN_ID,),
         )
         db.execute(
             "INSERT OR IGNORE INTO wallets(member_id,balance) VALUES(?,?)",
@@ -2497,7 +2512,7 @@ def render_dynamic_page(
         member_chat_script = soup.new_tag(
             "script",
             id="candycast-member-chat-script",
-            src="/assets/local/candycast-member-chat.js?v=20260718-inline3",
+            src="/assets/local/candycast-member-chat.js?v=20260721-giftlabel1",
             defer=True,
         )
         soup.body.append(member_chat_script)
@@ -2883,7 +2898,7 @@ MEMBERS_ADMIN_MARKUP = """
         <input type="hidden" name="influencerId">
         <label>메시지<textarea name="message" maxlength="1000" rows="4" required placeholder="회원 개인 채팅에 보낼 메시지"></textarea></label>
         <label>캔디 갯수<input name="amount" type="number" min="1" max="9999999999" step="1" required placeholder="0"></label>
-        <p class="cc-gift-help">선택한 BJ 이름으로 메시지가 전송되고 회원의 캔디 잔고가 즉시 증가합니다.</p>
+        <p class="cc-gift-help">선택한 BJ의 채팅방에 관리자 이름으로 메시지가 전송되고 회원의 캔디 잔고가 즉시 증가합니다.</p>
         <div class="cc-admin-modal-actions"><button type="button" class="cc-admin-secondary" data-gift-action="close">취소</button><button type="submit" class="cc-admin-primary">선물 보내기</button></div>
       </form>
     </section>
@@ -2998,6 +3013,8 @@ def support_message_payload(row: sqlite3.Row) -> dict[str, object]:
 
 def member_chat_message_payload(row: sqlite3.Row, member_id: str) -> dict[str, object]:
     deleted_by_member = bool(row["deleted_by_member"])
+    message_kind = str(row["message_kind"] or "")
+    is_gift = message_kind == "gift"
     attachment = None
     if row["attachment_data"] and not deleted_by_member:
         attachment = {
@@ -3007,7 +3024,9 @@ def member_chat_message_payload(row: sqlite3.Row, member_id: str) -> dict[str, o
         }
     return {
         "id": int(row["id"]),
-        "sender": "member" if row["sender_id"] == member_id else "influencer",
+        "sender": "member" if row["sender_id"] == member_id and not is_gift else "influencer",
+        "senderLabel": "관리자" if is_gift else "",
+        "messageKind": message_kind,
         "message": "" if deleted_by_member else row["message"],
         "attachment": attachment,
         "createdAt": row["created_at"],
@@ -3900,7 +3919,7 @@ class StandaloneHandler(BaseHTTPRequestHandler):
                     (now_text(), member_id, influencer_id, member_id, influencer_id),
                 )
             rows = db.execute(
-                """SELECT id,sender_id,receiver_id,message,
+                """SELECT id,sender_id,receiver_id,message,message_kind,
                           attachment_name,attachment_type,attachment_data,
                           created_at,read_at,edited_at,deleted_by_member
                    FROM chat_messages
@@ -4132,9 +4151,9 @@ class StandaloneHandler(BaseHTTPRequestHandler):
             db.execute("UPDATE users SET balance=? WHERE id=?", (new_balance, member_id))
             db.execute(
                 """INSERT INTO chat_messages(
-                       sender_id,receiver_id,member_id,influencer_id,message,created_at
-                   ) VALUES(?,?,?,?,?,?)""",
-                (influencer_id, member_id, member_id, influencer_id, message, created_at),
+                       sender_id,receiver_id,member_id,influencer_id,message,message_kind,created_at
+                   ) VALUES(?,?,?,?,?,'gift',?)""",
+                (ADMIN_ID, member_id, member_id, influencer_id, message, created_at),
             )
             self.touch_member_chat_room(db, member_id, influencer_id, created_at)
             db.execute(
@@ -4536,7 +4555,7 @@ class StandaloneHandler(BaseHTTPRequestHandler):
                           (SELECT COUNT(*) FROM chat_messages m
                            WHERE m.member_id=r.member_id
                              AND m.influencer_id=r.influencer_id
-                              AND m.sender_id=r.influencer_id
+                             AND (m.sender_id=r.influencer_id OR m.message_kind='gift')
                                AND m.receiver_id=r.member_id
                                AND m.deleted_by_member=0
                                AND m.read_at='') AS unread
@@ -4596,11 +4615,12 @@ class StandaloneHandler(BaseHTTPRequestHandler):
                 db.execute(
                     """UPDATE chat_messages SET read_at=?
                        WHERE member_id=? AND influencer_id=?
-                         AND sender_id=? AND receiver_id=? AND read_at=''""",
+                         AND (sender_id=? OR message_kind='gift')
+                         AND receiver_id=? AND read_at=''""",
                     (now_text(), member_id, influencer_id, influencer_id, member_id),
                 )
             rows = db.execute(
-                """SELECT id,sender_id,receiver_id,message,
+                """SELECT id,sender_id,receiver_id,message,message_kind,
                           attachment_name,attachment_type,attachment_data,
                           created_at,read_at,edited_at,deleted_by_member
                    FROM chat_messages
@@ -4964,6 +4984,7 @@ class StandaloneHandler(BaseHTTPRequestHandler):
         stylesheet: str,
         script: str,
         dependency_scripts: tuple[str, ...] = (),
+        asset_version: str = "20260719-bj1",
     ) -> bytes:
         try:
             from bs4 import BeautifulSoup
@@ -4989,12 +5010,12 @@ class StandaloneHandler(BaseHTTPRequestHandler):
         for child in list(fragment.contents):
             container.append(child)
         if soup.head is not None:
-            style = soup.new_tag("link", rel="stylesheet", href=f"{stylesheet}?v=20260719-bj1")
+            style = soup.new_tag("link", rel="stylesheet", href=f"{stylesheet}?v={asset_version}")
             soup.head.append(style)
         if soup.body is not None:
             for dependency in dependency_scripts:
                 soup.body.append(soup.new_tag("script", src=dependency))
-            application_script = soup.new_tag("script", src=f"{script}?v=20260719-bj1")
+            application_script = soup.new_tag("script", src=f"{script}?v={asset_version}")
             soup.body.append(application_script)
         return str(soup).encode("utf-8")
 
@@ -5034,6 +5055,7 @@ class StandaloneHandler(BaseHTTPRequestHandler):
             "/assets/local/candycast-admin-member-chat.css",
             "/assets/local/candycast-admin-member-chat.js",
             ("/assets/local/candycast-image-utils.js",),
+            asset_version="20260721-giftlabel1",
         )
 
     def do_GET(self) -> None:  # noqa: N802
@@ -6160,7 +6182,23 @@ class StandaloneHandler(BaseHTTPRequestHandler):
             rendered,
         )
         soup = BeautifulSoup(rendered, "html.parser")
+        today_prefix = datetime.now().strftime("%Y-%m-%d") + "%"
         with sqlite3.connect(self.db_path) as db:
+            gift_row = db.execute(
+                """SELECT COALESCE(SUM(amount),0),
+                          COALESCE(SUM(CASE WHEN created_at LIKE ? THEN amount ELSE 0 END),0)
+                   FROM candy_gifts WHERE member_id=?""",
+                (today_prefix, current_user),
+            ).fetchone()
+            gift_total = int(gift_row[0] or 0)
+            gift_today = int(gift_row[1] or 0)
+            exchanged_row = db.execute(
+                """SELECT COALESCE(SUM(price),0) FROM transactions
+                   WHERE member_id=? AND kind='export' AND status IN ('승인','완료')
+                     AND COALESCE(is_deleted,0)=0""",
+                (current_user,),
+            ).fetchone()
+            exchanged_total = int(exchanged_row[0] or 0)
             export_rows = db.execute(
                 """SELECT name,bank,bankno,price,status,created_at FROM transactions
                    WHERE member_id=? AND kind='export' AND COALESCE(is_deleted,0)=0
@@ -6173,6 +6211,22 @@ class StandaloneHandler(BaseHTTPRequestHandler):
                    ORDER BY id DESC""",
                 (current_user,),
             ).fetchall()
+
+        gift_metrics = {
+            "오늘 선물 받은 캔디": gift_today,
+            "환전 대기 캔디": 0,
+            "이미 환전한 캔디": exchanged_total,
+            "선물 받은 누적 캔디": gift_total,
+        }
+        for item in soup.select(".my2-tab1-con .my2-con > li"):
+            label = item.get_text(" ", strip=True)
+            for metric_label, metric_value in gift_metrics.items():
+                if not label.startswith(metric_label):
+                    continue
+                value_node = item.select_one("p i")
+                if value_node is not None:
+                    value_node.string = f"{metric_value:,}"
+                break
 
         def replace_table_rows(selector: str, values: list[list[str]], labels: list[str]) -> None:
             tbody = soup.select_one(selector)
@@ -6333,11 +6387,12 @@ class StandaloneHandler(BaseHTTPRequestHandler):
             db.execute(
                 """UPDATE chat_messages SET read_at=?
                    WHERE member_id=? AND influencer_id=?
-                     AND sender_id=? AND receiver_id=? AND read_at=''""",
+                     AND (sender_id=? OR message_kind='gift')
+                     AND receiver_id=? AND read_at=''""",
                 (viewed_at, current_user, receiver, receiver, current_user),
             )
             rows = db.execute(
-                """SELECT id,sender_id,receiver_id,message,
+                """SELECT id,sender_id,receiver_id,message,message_kind,
                           attachment_name,attachment_type,attachment_data,
                           created_at,read_at,edited_at,deleted_by_member
                    FROM chat_messages
@@ -6353,6 +6408,8 @@ class StandaloneHandler(BaseHTTPRequestHandler):
         bubble_items = []
         for row in rows:
             sender = str(row["sender_id"])
+            is_gift = str(row["message_kind"] or "") == "gift"
+            mine = sender == current_user and not is_gift
             message = str(row["message"] or "")
             deleted_by_member = bool(row["deleted_by_member"])
             attachment_html = ""
@@ -6377,12 +6434,12 @@ class StandaloneHandler(BaseHTTPRequestHandler):
                 '<span class="cc-chat-message-actions" hidden>'
                 f'<button type="button" data-cc-chat-action="delete-message" data-message-id="{int(row["id"])}">메시지 삭제</button>'
                 '</span>'
-                if sender == current_user and not deleted_by_member
+                if mine and not deleted_by_member
                 else ""
             )
             bubble_items.append(
-                f'<li class="{"mine" if sender == current_user else "theirs"}" data-message-id="{int(row["id"])}"><div>'
-                f'<strong>{"나" if sender == current_user else html.escape(room_name)}</strong>'
+                f'<li class="{"mine" if mine else "theirs"}" data-message-id="{int(row["id"])}"><div>'
+                f'<strong>{"나" if mine else ("관리자" if is_gift else html.escape(room_name))}</strong>'
                 f'{message_html}{attachment_html}'
                 f'{actions_html}<time>{html.escape(str(row["created_at"]))}{edited_html}</time></div></li>'
             )
@@ -6406,7 +6463,7 @@ class StandaloneHandler(BaseHTTPRequestHandler):
             + mobile_navigation_markup(True)
             + '<script src="/assets/local/candycast-image-utils.js" defer></script>'
             + '<script src="/assets/local/candycast-support.js?v=20260717-chat3" defer></script>'
-            + '<script src="/assets/local/candycast-member-chat.js?v=20260718-inline3" defer></script>'
+            + '<script src="/assets/local/candycast-member-chat.js?v=20260721-giftlabel1" defer></script>'
             + '<script src="/assets/local/candycast-mobile.js?v=20260717-audit1" defer></script>'
             + '<script src="/assets/local/candycast-restrictions.js" defer></script></body>',
         )
