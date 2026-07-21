@@ -2039,6 +2039,44 @@ def render_dynamic_page(
             search_button["style"] = "border:0;background:transparent;padding:0;cursor:pointer;"
             changed = True
 
+        contents = soup.select_one("#contents")
+        if contents is not None and soup.select_one(".cc-mobile-home-search") is None:
+            mobile_search_form = soup.new_tag(
+                "form",
+                attrs={
+                    "class": "cc-mobile-home-search",
+                    "action": "/",
+                    "method": "get",
+                    "role": "search",
+                },
+            )
+            mobile_search_input = soup.new_tag(
+                "input",
+                attrs={
+                    "type": "search",
+                    "name": "keyword",
+                    "value": search_keyword.strip(),
+                    "placeholder": "BJ, 방송 제목 검색",
+                    "aria-label": "BJ, 방송 제목 검색",
+                    "autocomplete": "off",
+                    "maxlength": "80",
+                    "onkeydown": "if(event.key==='Enter'){event.preventDefault();this.form.submit();return false;}",
+                },
+            )
+            mobile_search_button = soup.new_tag(
+                "button",
+                attrs={"type": "submit", "aria-label": "검색"},
+            )
+            mobile_search_icon = soup.new_tag(
+                "img",
+                attrs={"src": "/ftv/images/ico_search.png", "alt": ""},
+            )
+            mobile_search_button.append(mobile_search_icon)
+            mobile_search_form.append(mobile_search_input)
+            mobile_search_form.append(mobile_search_button)
+            contents.insert(0, mobile_search_form)
+            changed = True
+
     if "cc-page-shop" in page_classes:
         for item in soup.select(".flex-con > ul > li"):
             paragraphs = item.find_all("p", recursive=False)
@@ -2404,7 +2442,7 @@ def render_dynamic_page(
             "link",
             id="candycast-mobile-style",
             rel="stylesheet",
-            href="/assets/local/candycast-mobile.css?v=20260718-shopcolor3",
+            href="/assets/local/candycast-mobile.css?v=20260721-homesearch1",
         )
         soup.head.append(mobile_style)
         changed = True
@@ -6359,7 +6397,7 @@ class StandaloneHandler(BaseHTTPRequestHandler):
             "</head>",
             '<link rel="stylesheet" href="/assets/local/candycast-support.css?v=20260717-chat3">'
             '<link rel="stylesheet" href="/assets/local/candycast-member-chat.css?v=20260718-inline3">'
-            '<link rel="stylesheet" href="/assets/local/candycast-mobile.css?v=20260718-shopcolor3">'
+            '<link rel="stylesheet" href="/assets/local/candycast-mobile.css?v=20260721-homesearch1">'
             '<link rel="stylesheet" href="/assets/local/candycast-restrictions.css"></head>',
         ).replace(
             "</body>",

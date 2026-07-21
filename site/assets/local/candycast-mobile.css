@@ -1,6 +1,7 @@
 .cc-mobile-nav,
 .cc-mobile-member-actions,
-.cc-mobile-chat-search {
+.cc-mobile-chat-search,
+.cc-mobile-home-search {
   display: none !important;
 }
 
@@ -129,6 +130,58 @@ body.cc-page-shop .cc-shop-level-mobile {
 
   body.cc-public-page #header .h-select3 {
     display: none !important;
+  }
+
+  body.cc-page-home .cc-mobile-home-search {
+    display: flex !important;
+    width: 100%;
+    height: 44px;
+    align-items: stretch;
+    margin: 0 0 14px;
+    overflow: hidden;
+    border: 1px solid #d7dbe2;
+    border-radius: 6px;
+    background: #fff;
+  }
+
+  body.cc-page-home .cc-mobile-home-search input {
+    width: 100%;
+    min-width: 0;
+    height: 42px;
+    padding: 0 12px;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: #111;
+    font-size: 14px;
+  }
+
+  body.cc-page-home .cc-mobile-home-search input::placeholder {
+    color: #8b9099;
+  }
+
+  body.cc-page-home .cc-mobile-home-search input:focus-visible {
+    box-shadow: inset 0 0 0 2px #fc55a8;
+  }
+
+  body.cc-page-home .cc-mobile-home-search button {
+    display: flex;
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 0;
+    background: #111;
+    cursor: pointer;
+  }
+
+  body.cc-page-home .cc-mobile-home-search button img {
+    width: 18px;
+    height: 18px;
+    object-fit: contain;
+    filter: brightness(0) invert(1);
   }
 
   body.cc-public-page #header .h-select2 {
