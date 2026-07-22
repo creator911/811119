@@ -5,6 +5,21 @@
   display: none !important;
 }
 
+body.cc-page-register form[name="fregisterform"],
+body.cc-page-register #login {
+  height: auto;
+  min-height: 100vh;
+}
+
+body.cc-page-register #login {
+  align-items: flex-start;
+  padding: 30px 0 48px;
+}
+
+body.cc-page-register #footer {
+  margin-top: 0;
+}
+
 body.cc-page-shop .cc-shop-symbol {
   display: flex;
   width: 100%;
