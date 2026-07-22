@@ -2528,7 +2528,7 @@ def render_dynamic_page(
         mobile_script = soup.new_tag(
             "script",
             id="candycast-mobile-script",
-            src="/assets/local/candycast-mobile.js?v=20260717-audit1",
+            src="/assets/local/candycast-mobile.js?v=20260722-register1",
             defer=True,
         )
         soup.body.append(mobile_script)
@@ -6464,7 +6464,7 @@ class StandaloneHandler(BaseHTTPRequestHandler):
             + '<script src="/assets/local/candycast-image-utils.js" defer></script>'
             + '<script src="/assets/local/candycast-support.js?v=20260717-chat3" defer></script>'
             + '<script src="/assets/local/candycast-member-chat.js?v=20260721-giftlabel1" defer></script>'
-            + '<script src="/assets/local/candycast-mobile.js?v=20260717-audit1" defer></script>'
+            + '<script src="/assets/local/candycast-mobile.js?v=20260722-register1" defer></script>'
             + '<script src="/assets/local/candycast-restrictions.js" defer></script></body>',
         )
         return page.encode("utf-8")

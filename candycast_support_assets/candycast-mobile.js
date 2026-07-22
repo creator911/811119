@@ -156,37 +156,14 @@
     if (!form || !submit || form.dataset.ccSubmitBound === "1") return;
     form.dataset.ccSubmitBound = "1";
 
-    async function sendRegistration(event) {
-      if (event) event.preventDefault();
-      if (form.dataset.ccSubmitting === "1") return;
-      if (typeof form.checkValidity === "function" && !form.checkValidity()) {
-        if (typeof form.reportValidity === "function") form.reportValidity();
+    form.addEventListener("submit", function (event) {
+      if (form.dataset.ccSubmitting === "1") {
+        event.preventDefault();
         return;
       }
-
       form.dataset.ccSubmitting = "1";
       submit.disabled = true;
-      try {
-        var payload = new URLSearchParams();
-        new FormData(form).forEach(function (value, key) {
-          if (typeof value === "string") payload.append(key, value);
-        });
-        var response = await fetch(form.action, {
-          method: "POST",
-          body: payload,
-          credentials: "same-origin",
-          headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" }
-        });
-        window.location.assign(response.url || "/bbs/login.php?registered=1");
-      } catch (_error) {
-        form.dataset.ccSubmitting = "0";
-        submit.disabled = false;
-        window.alert("회원가입 처리 중 오류가 발생했습니다. 다시 시도해주세요.");
-      }
-    }
-
-    form.addEventListener("submit", sendRegistration);
-    submit.addEventListener("click", sendRegistration);
+    });
   }
 
   function setupHeroCarousel() {
